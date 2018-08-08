@@ -53,5 +53,52 @@ cd /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts
 bash make_chrom_only_vcfs.sh
 ```
 
+#### Divide vcfs by Insertion and Deletion
+Want to be able to analyze insertions and deletions separately, if need be
 
- 
+##### R script to generate files with positions of insertions and deletions
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_sep_INS_AND_DEL_commands.r
+```
+##### Transfer index files to directory with original vcfs
+```
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/indel_info
+tar -cvf branch_file_in_del_positions.tar *_positions.txt
+cp branch_file_in_del_positions.tar ../struc_vcfs/
+cd ../struc_vcfs
+tar -xvf branch_file_in_del_positions.tar
+
+``` 
+##### Generate INS and DEL-specific .vcf files for each library
+```
+bash /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/gen_INS_DEL_vcfs.sh
+```
+#### Pairwise comparisons of INS and DEL-specific vcf files
+use vcftools to find shared, overlapping, and non-shared variation in pairwise \
+comparisons
+
+##### R script to generate vcf commands for pairwise comparisons
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_pw_comp_commands.r
+```
+
+##### Run pairwise comparisons using vcftools
+```
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/shared_loci
+bash share_diff_comp_commands.sh
+bash share_diff_INS_comp_commands.sh
+
+```
+
+#### Calculate closest indel for non-shared indels from pairwise comparisons
+##### R script with analysis
+`/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/analyze_pairwise_diffs.r`
+Note: this script is pretty slow and inefficient, so submit job to run it
+##### shell script to execute R script
+`/home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/make_diff_indel_files.sh`
+##### run shell script to do analysis
+```
+cd /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts
+qsub -cwd -N pop_pair_diff -l h_vmem=4G -q all.q make_diff_indel_files.sh
+```
+
