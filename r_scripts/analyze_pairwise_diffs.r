@@ -2,7 +2,7 @@
 #  that are outputted from the --diff-site option in vcftools of
 
 # INPUT FILES #
-r_function_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/pop_branch_functions.r'
+r_function_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_tools/pop_branch_functions.r'
 
 # SET VARIABLES #
 file_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/shared_loci/'
