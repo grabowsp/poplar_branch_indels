@@ -101,4 +101,17 @@ Note: this script is pretty slow and inefficient, so submit job to run it
 cd /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts
 qsub -cwd -N pop_pair_diff -l h_vmem=4G -q all.q make_diff_indel_files.sh
 ```
+### Combine Info from each library
+Goals:
+1. Make table for each sample that contains distance to next closest indel \
+in each of the other samples for each of the indels found in the test sample
+
+#### Combine the indel distances from each pairwise comparison file
+For each sample, go through all it's pairwise `.diff_indels` files and pull \
+out the indel distances when compared to each of the other samples
+Resulting tables have `.indel_dist_tot` suffix
+#### R script for generating the tables
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/gen_samp_tot_dist_tabs.r
+```
 
