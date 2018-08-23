@@ -19,7 +19,7 @@ indel_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/indel_info/'
 branch_names <- gsub('.', '_', meta$branch_name, fixed = T)
 
 for(i in branch_names){
-  info_file <- paste(indel_dir, 'branch_', i, '.INFO', sep = '')
+  info_file <- paste(indel_dir, 'branch_', i, '_chrom.INFO', sep = '')
   info <- read.table(info_file, header = T, stringsAsFactors = F, sep = '\t')
   chr_inds <- grep('Chr', info$CHROM)
   del_inds <- which(info$SVTYPE == 'DEL')

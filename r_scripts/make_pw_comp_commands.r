@@ -55,4 +55,4 @@ ins_comm_vec <- gen_comp_commands(ins_vcf_files, indel = 'INS')
 write.table(ins_comm_vec, file = ins_comm_file_out, quote = F, sep = ' ', 
   row.names = F, col.names = F)
 
-quite(save = 'no')
+quit(save = 'no')

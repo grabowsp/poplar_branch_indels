@@ -12,7 +12,7 @@ in each of the libraries
 
 #### R Script to generate vcftools commands get indel INFO
 ```
-Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_indel_info_commands.r` 
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_indel_info_commands.r 
 ```
 
 #### Get INFO about indels using vcftools
@@ -53,6 +53,17 @@ cd /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts
 bash make_chrom_only_vcfs.sh
 ```
 
+#### Get InDel info from chromosome-only VCFs
+##### R Script to generate vcftools commands to get indel INFO
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_indel_info_chrom_only_commands.r
+```
+##### Get INFO about indels from the chromsome-only VCFs
+```
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/indel_info
+chmod u+x get_chrom_only_indel_info.sh
+./get_chrom_only_indel_info.sh
+```
 #### Divide vcfs by Insertion and Deletion
 Want to be able to analyze insertions and deletions separately, if need be
 
@@ -93,6 +104,7 @@ bash share_diff_INS_comp_commands.sh
 #### Calculate closest indel for non-shared indels from pairwise comparisons
 ##### R script with analysis
 `/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/analyze_pairwise_diffs.r`
+
 Note: this script is pretty slow and inefficient, so submit job to run it
 ##### shell script to execute R script
 `/home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/make_diff_indel_files.sh`
@@ -108,7 +120,7 @@ in each of the other samples for each of the indels found in the test sample
 
 #### Combine the indel distances from each pairwise comparison file
 For each sample, go through all it's pairwise `.diff_indels` files and pull \
-out the indel distances when compared to each of the other samples
+out the indel distances when compared to each of the other samples.
 Resulting tables have `.indel_dist_tot` suffix
 #### R script for generating the tables
 ```
