@@ -19,7 +19,7 @@ vcf_info_com_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/indel_info/g
 out_names <- paste('branch', gsub('.', '_', meta$branch_name, fixed = T), 
                sep = '_')
 
-paste(vcf_com_1, meta$local_file, vcf_com_2, out_names, sep = '')
+# paste(vcf_com_1, meta$local_file, vcf_com_2, out_names, sep = '')
 
 vcf_info_commands <- c(paste('#!/bin/csh'), paste(vcf_com_1, meta$local_file, 
                        vcf_com_2, out_names, sep = ''))

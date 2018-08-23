@@ -126,4 +126,13 @@ Resulting tables have `.indel_dist_tot` suffix
 ```
 Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/gen_samp_tot_dist_tabs.r
 ```
+### Identify Unique Indels
+Goals:
+1. Calculate number of Indels that are not shared by any other samples and\
+are a certain distance from any other indel in any sample
+2. Look at size distribution of unique indels
+#### Generate Figures Showing Number and Size Distributions of Unique Indels
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/unique_indel_figs.r
+```
 
