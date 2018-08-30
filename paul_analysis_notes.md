@@ -135,4 +135,32 @@ are a certain distance from any other indel in any sample
 ```
 Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/unique_indel_figs.r
 ```
+## Indel-based Distance Matrix
+Steps:
+1. Generate Distance Matrices Using different bp-distances
+2. PCoA with distance matrices
+### Generate Distance Matrix
+#### Goals
+* Calculate % shared indels for each library with the other libraries
+* Calculate indel-based genetic distance using both directions of the pairwise
+comparison. For example, samp1Vsamp2 and samp2Vsamp1
+* PCoA of distance matrices
+#### R Script
+Generates distance matrices and produces PCoA figures
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_indel_dist_mat.r
+```
+### PCoA Figures
+Distance cutoffs: exact same position; overlap; 100bp; 1kp; 5kb; 10kb
+* All indels
+  * https://github.com/grabowsp/poplar_branch_indels/blob/master/figs/indel_PCoA_combo.pdf
+* Insertions-only
+  * https://github.com/grabowsp/poplar_branch_indels/blob/master/figs/insertions_PCoA_combo.pdf
+* Deletions-only
+  * https://github.com/grabowsp/poplar_branch_indels/blob/master/figs/deletions_PCoA_combo.pdf
+### Interpretation
+* The libraries do NOT form clone-specific or lineage-specific clusters for
+any of the comparisons (different distances; insertions, deletions, or both)
+* It's possible that PCoA with so few samples isn't really the best way to go
+about this
 

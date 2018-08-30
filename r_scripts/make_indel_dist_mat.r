@@ -15,8 +15,13 @@ indel_dist_suf <- '.indel_dist_tot'
 
 #dist_cut <- 100
 dist_cut_vec <- c(0, 1, 100, 1000, 5000, 10000)
-# OUTPUT INFO #
 
+# OUTPUT INFO #
+indel_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/indel_PCoA_combo.pdf'
+
+insert_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/insertions_PCoA_combo.pdf'
+
+delet_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/deletions_PCoA_combo.pdf'
 
 # SET CONSTANTS #
 
@@ -139,7 +144,6 @@ for(pl in seq(length(sym_dist_list))){
                      ylim(y_lim_adj)
 }
 
-indel_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/indel_PCoA_combo.pdf'
 
 pdf(file = indel_mds_plot_file, width = 8, height = 10)
 do.call(grid.arrange, c(plot_list, ncol = 2))
@@ -173,8 +177,6 @@ for(pl in seq(length(ins_sym_list))){
                      ylim(y_lim_adj)
 }
 
-insert_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/insertions_PCoA_combo.pdf'
-
 pdf(file = insert_mds_plot_file, width = 8, height = 10)
 do.call(grid.arrange, c(ins_plot_list, ncol = 2))
 dev.off()
@@ -207,11 +209,9 @@ for(pl in seq(length(del_sym_list))){
                      ylim(y_lim_adj)
 }
 
-delet_mds_plot_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/figs/deletions_PCoA_combo.pdf'
-
 pdf(file = delet_mds_plot_file, width = 8, height = 10)
 do.call(grid.arrange, c(del_plot_list, ncol = 2))
 dev.off()
 
-
 quit(save = 'no')
+
