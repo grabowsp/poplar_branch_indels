@@ -115,11 +115,11 @@ qsub -cwd -N pop_pair_diff -l h_vmem=4G -q all.q make_diff_indel_files.sh
 ```
 ### Combine Info from each library
 Goals:
-1. Make table for each sample that contains distance to next closest indel \
+1. Make table for each sample that contains distance to next closest indel 
 in each of the other samples for each of the indels found in the test sample
 
 #### Combine the indel distances from each pairwise comparison file
-For each sample, go through all it's pairwise `.diff_indels` files and pull \
+For each sample, go through all it's pairwise `.diff_indels` files and pull 
 out the indel distances when compared to each of the other samples.
 Resulting tables have `.indel_dist_tot` suffix
 #### R script for generating the tables
@@ -163,4 +163,32 @@ Distance cutoffs: exact same position; overlap; 100bp; 1kp; 5kb; 10kb
 any of the comparisons (different distances; insertions, deletions, or both)
 * It's possible that PCoA with so few samples isn't really the best way to go
 about this
+## Re-call Indels with Libraries Together
+### Steps
+* Sort .bam files with SAM Tools
+* make mpileup file with SAM Tools
+* Call Indels using mpile2indel in VarScan
+### SAM Tools Steps
+#### R Script to Generate Commands for Sorting .bams and making mpileup
+```
+Rscript --vanilla /home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/make_samtools_pileup_command.r
+```
+#### Sort .bam files
+##### Shell Script
+```
+/home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/sort_bams.sh
+```
+##### Run Script
+```
+qsub -N sort_pop_bams -l h_vmem=8G -q all.q /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/sort_bams.sh
+```
+#### Generate mpileup
+##### Shell Script
+```
+/home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/pop_samtools_mpileup.sh
+```
+##### Run Script
+```
+qsub -N gen_pop_mpile -l h_vmem=8G -q all.q /home/grabowsky/tools/workflows/poplar_branch_indels/shell_scripts/pop_samtools_mpileup.sh
+```
 

@@ -109,9 +109,13 @@ length(intersect(intersect(b13_5v3, b13_5v2), b13_5v1))
 # [1] 0.8890116
 # 89% of 1K+ deletions are shared by the 4 clone-13 branches
 
-subt_1 <- test_2[, c(6:ncol(test_2))] > 1
+#subt_1 <- test_2[, c(6:ncol(test_2))] > 1
+#sum(apply(subt_1[,c(1:3)], 1, sum) == 0)
+##[1] 3220
+
+subt_1 <- test_2[, c(6:ncol(test_2))] > 0
 sum(apply(subt_1[,c(1:3)], 1, sum) == 0)
-#[1] 3220
+# [1] 217
 
 col_vec <- c(1:ncol(subt_1))
 share_sum_vec <- c()
@@ -122,10 +126,50 @@ for(i in seq(1000)){
 
 summary(share_sum_vec)
 #    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   3031    3109    3146    3152    3189    3309
+#     115     147     162     164     182     222 
 
-sum(share_sum_vec > 3220)
-# [1] 126
+sum(share_sum_vec > 217)
+# [1] 25
+
+sum(apply(subt_1, 1, sum) == 0)
+# 32
+# 32 deletions are shared across all libraries
+
+all_lib_inds <- which(apply(subt_1, 1, sum) == 0)
+subt_2 <- subt_1[-all_lib_inds,]
+
+sum(apply(subt_2[,c(1:3)], 1, sum) == 0)
+# [1] 185
+
+share_sum_vec <- c()
+for(i in seq(1000)){
+  tmp_val <- sum(apply(subt_2[,sample(col_vec, size = 3)], 1, sum) == 0)
+  share_sum_vec <- c(share_sum_vec, tmp_val)
+}
+
+sum(share_sum_vec > 185)
+# [1] 22
+
+apply(subt_2, 2, sum)
+# X13_1 X13_2 X13_3 X14_2 X14_3 X14_4 X14_5 
+#  3022  3060  2959  3037  3071  3108  3087
+
+meta_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v3.0.txt'
+meta <- read.table(meta_file, header = T, stringsAsFactors = F, sep = '\t')
+
+# Deletions only found in branch 5:
+sum(apply(subt_2,1,sum) == 7)
+# [1] 2201
+
+# Deletions NOT found in 14, so only found in clone 13
+length(setdiff(which(apply(subt_2[, c(4:7)], 1, sum) == 4), 
+  which(apply(subt_2,1,sum) == 7)))
+# [1] 260
+
+sum(apply(subt_2[, c(1,3,4)], 1, sum) == 0)
+# 1,3,4
+
+sum(apply(subt_2[, c(4:7)], 1, sum) == 4)
 
 # Need to figure out how to incorportate/remove genotype-specific markers...
 quit(save = 'no')
