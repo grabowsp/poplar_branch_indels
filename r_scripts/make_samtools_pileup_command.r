@@ -41,8 +41,11 @@ bam_files_full <- paste(base_file_dir, sprintf('%03d', meta$root_dir_num),
   sprintf('%06d', meta$job_num), bam_file_string, sep = '/')
 
 out_sort_files <- paste('branch', meta$branch_name, '_sorted.bam', sep = '')
+# tmp_sort_files <- paste('branch', meta$branch_name, 'tmpsort', sep = '')
 
-sort_coms <- paste('samtools sort', bam_files_full, '-o', out_sort_files, 
+#sort_coms <- paste('samtools sort -T', tmp_sort_files, '-o', out_sort_files, 
+#  bam_files_full, sep = ' ')
+sort_coms <- paste('samtools sort -f', bam_files_full, out_sort_files, 
   sep = ' ')
 
 sh_sort_vec <- c()
