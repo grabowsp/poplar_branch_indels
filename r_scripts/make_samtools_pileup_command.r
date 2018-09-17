@@ -6,6 +6,8 @@ meta_0 <- read.table(meta_file, header = T, stringsAsFactors = F, sep = '\t')
 
 # SET VARIABLES #
 bad_samps <- c('13.4', '14.1')
+
+sam_mem <- '2G'
 # SET CONSTANTS #
 base_file_dir <- '/home/smrtlink/userdata/jobs_root.local'
 bam_file_string <- 'tasks/pbsvtools.tasks.gather_align-1/alignments.bam'
@@ -41,11 +43,12 @@ bam_files_full <- paste(base_file_dir, sprintf('%03d', meta$root_dir_num),
   sprintf('%06d', meta$job_num), bam_file_string, sep = '/')
 
 out_sort_files <- paste('branch', meta$branch_name, '_sorted.bam', sep = '')
-# tmp_sort_files <- paste('branch', meta$branch_name, 'tmpsort', sep = '')
+tmp_sort_files <- paste('branch', meta$branch_name, 'tmpsort', sep = '')
 
 #sort_coms <- paste('samtools sort -T', tmp_sort_files, '-o', out_sort_files, 
 #  bam_files_full, sep = ' ')
-sort_coms <- paste('samtools sort -f', bam_files_full, out_sort_files, 
+sort_coms <- paste('/home/raid2/LINUXOPT/samtools-1.9/bin/samtools sort -T', 
+  tmp_sort_files, '-m', sam_mem, '-o', out_sort_files, bam_files_full, 
   sep = ' ')
 
 sh_sort_vec <- c()
@@ -57,7 +60,6 @@ write.table(sh_sort_vec, file = sh_sort_file, quote = F, sep = '\t',
   row.names = F, col.names = F)
 
 #####################
-
 sorted_bam_files <- paste(bam_sort_dir, out_sort_files, sep = '/')
 
 bam_files_string <- paste(sorted_bam_files, collapse = ' ')
