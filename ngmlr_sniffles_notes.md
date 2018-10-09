@@ -1,8 +1,10 @@
 # Running ngmlr for mapping poplar branch PacBio data
+
 ## Goals
 * Map poplar branch PacBio libraries to 14.5 v1.0 (based on Pop Ref 4.0)
 * Detect SV in each library
 * Genotype libraries at all SVs found in any library
+
 ## Steps
 * Gather and concatenate fasta files
 * ngmlr to map sample fasta files to Poplar 14.5 v1.0 reference to create .bam\
@@ -15,6 +17,7 @@ files
 * sort vcf files
 * SURVIVOR a second time to get combined VCF with all SVs genotyped in all\
 samples
+
 ## Gather and concatenate fasta files
 ### Test approach using one library/sample: PBAU
 #### Location of .fasta files for PBAU
@@ -88,5 +91,12 @@ bash
 cd /home/f1p1/tmp/poplar_branches/lib_mapping
 for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do qsub $i.14.5v1.0Ref.ngmlr.sh ; done
 ```
+### Output
+* Produced .bam file for each sample
+* Found in `/home/f1p1/tmp/poplar_branches/lib_mapping`
+* Named `LIBNAME.14.5v1.0Ref.ngmlr.bam`
+  * ex: `PAXL.14.5v1.0Ref.ngmlr.bam`
 
+## Sort .bam Files
+Need to sort the .bam files before running SNIFFLES
 
