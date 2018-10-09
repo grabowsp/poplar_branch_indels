@@ -305,6 +305,6 @@ cp popbranch.ngmlr.sniffles.survivor.supervisedmerged1kbdist.vcf /home/t4c1/WORK
 
 ```
 ### Output
-* Files found in following $WORK subdirectory: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles`
+* Files found in following $WORK subdirectory: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles/`
 
 
