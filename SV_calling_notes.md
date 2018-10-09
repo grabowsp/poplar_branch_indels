@@ -35,4 +35,8 @@ Mike is trying this out now
 6) rerun SNIFFLES to force-call all SVs based on SURVIVOR output
 7) sort vcfs
 8) Re-run SURVIVOR to get merged vcf
+### Analysis Notes
+`./ngmlr_sniffles_notes.md`
+
+
 
