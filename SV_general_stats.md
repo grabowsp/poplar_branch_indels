@@ -1,0 +1,88 @@
+# General Statistics for the Different SV Calling Methods
+## Outline
+1) Number of insertions and deletions with each method
+2) Size distribution of insertions and deletions with each method
+3) Amount of missing data with each method
+
+## Location of VCFs
+### "Old" PacBio Pipeline
+* `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/old_PB_SVcaller`
+### "New" PacBio Pipeline
+* `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller`
+### SNIFFLES
+* `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles`
+
+## Number of Insertions and Deletions
+### Steps
+1) Extract SV info from the VCFs for the different methods using VCFtools
+  * Get info from individual and combined VCFs for each method
+2) In R, generate tables/data.frames with info about SVs for each method
+3) Generate barplot containing number of SVs in each sample for each method
+### Get SV Info from VCFs
+#### Commands
+##### "Old" PacBio Pipeline
+* First extract info from combined VCF, then from each individual VCF
+  * For the "Old" PacBio pipeline, no individual file was generated for \
+PAZH, I guess because it is the reference, 14.5
+```
+bash
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/old_PB_SVcaller/tmp
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW
+  do vcftools --vcf ../pop_branches_combo_old_PB_SVcaller_Ref14.5_v1.0.vcf --get-INFO SVLEN --indv $i --maf 0.01 --out 'pop_branches_'$i'_combo_length'
+done
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PBAT PBAU PBAW
+  do vcftools --vcf '../pop_branches_'$i'_old_PB_SVcaller_Ref14.5_v1.0.vcf' --get-INFO SVLEN --maf 0.01 --out 'pop_branches_'$i'_solo_length'
+done
+```
+##### "New" PacBio Pipline
+* First extract info from combined VCF, then from each individual VCF
+```
+bash
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW
+  do vcftools --vcf ../ref.ALLData.vcf --get-INFO SVLEN --indv $i --maf 0.01 --out 'pop_branches_newPB_'$i'_combo_length'
+done
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW
+  do vcftools --vcf '../ref.'$i'.vcf' --get-INFO SVLEN --maf 0.01 --out 'pop_branches_newPB_'$i'_solo_length'
+done
+```
+##### SNIFFLES
+* First extract info from combined VCF, then from each individual VCF
+  * individual VCF's are raw/unsupervised runs of SNIFFLES
+```
+bash
+cd /home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles/tmp
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW
+  do vcftools --vcf ../popbranch.ngmlr.sniffles.survivor.supervisedmerged1kbdist.vcf --get-INFO AVGLEN --indv $i'.14.5v1.0Ref.ngmlr.sorted.bam' --maf 0.01 --out 'pop_branches_sniffles_'$i'_combo_length'
+done
+
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW
+  do vcftools --vcf '../'$i'.14.5v1.0Ref.ngmlr.sorted.sniffles.vcf' --get-INFO SVLEN --maf 0.01 --out 'pop_branches_sniffles_'$i'_solo_length'
+done
+```
+#### Location of Output
+##### "Old" PacBio Pipeline
+* Found in: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/old_PB_SVcaller/tmp`
+* Info from combined VCF: `pop_branches_LIBNAME_combo_length.INFO`
+  * ex: `pop_branches_PAXL_combo_length.INFO`
+* Info from individual VCFs: `pop_branches_LIBNAME_solo_length.INFO`
+  * ex: `pop_branches_PAXL_solo_length.INFO`
+##### "New" PacBio Pipeline
+* Found in: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp`
+* Info from combined VCF: `pop_branches_newPB_LIBNAME_combo_length.INFO`
+  * ex: `pop_branches_newPB_PAXL_combo_length.INFO`
+* Infor from individual VCFs: `pop_branches_newPB_LIBNAME_solo_length.INFO`
+  * ex: `pop_branches_newPB_PAXL_solo_length.INFO`
+##### SNIFFLES
+* Found in: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles/tmp`
+* Info from combined VCF: `pop_branches_sniffles_LIBNAME_combo_length.INFO`
+  * ex: `pop_branches_sniffles_PAXL_combo_length.INFO`
+* Info from individual VCFs: `pop_branches_sniffles_LIBNAME_solo_length.INFO`
+  * ex: `pop_branches_sniffles_PAXL_solo_length.INFO`
+
+
