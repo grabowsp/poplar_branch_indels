@@ -84,5 +84,13 @@ done
   * ex: `pop_branches_sniffles_PAXL_combo_length.INFO`
 * Info from individual VCFs: `pop_branches_sniffles_LIBNAME_solo_length.INFO`
   * ex: `pop_branches_sniffles_PAXL_solo_length.INFO`
-
+### Process SV Length Info in R
+#### R Script
+```
+./r_scripts/process_SV_length_info.r
+```
+#### Output file
+```
+/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/combined_analysis/combined_processed_indel_length_info.rds
+```
 
