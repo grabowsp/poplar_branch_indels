@@ -79,6 +79,10 @@ process_SNIF_SVlength_data <- function(lib_vec, data_dir, data_pre,
     tmp_data_indel <- tmp_data[sort(union(del_inds, ins_inds)), ]
     tmp_df <- data.frame(SVLEN = tmp_data_indel[,len_col_name], samp = opbl,
       stringsAsFactors = F)
+    tmp_na_inds <- which(is.na(tmp_df$SVLEN))
+    if(length(tmp_na_inds) > 0){
+      tmp_df <- tmp_df[-tmp_na_inds, ]
+    }
     tmp_length_list[[opbl]] <- tmp_df
   }
   return(tmp_length_list)

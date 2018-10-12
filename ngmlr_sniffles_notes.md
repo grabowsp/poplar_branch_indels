@@ -136,7 +136,9 @@ for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do qsub $i.14.5v1.0Ref.so
 the INFO and GT fields
 * Used following flags:
   * -s 5
-  * -l 50
+  * -l 30
+    * originally used 50 but decided to use 30 and then filter out those \
+below 50bp
   * -n 5
 ### Testing with one library: PBAU
 #### Shell script
