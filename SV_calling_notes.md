@@ -14,6 +14,10 @@ goal of project)
 2) Call SVs using HAGSC "New" PacBio pipeline
   * each sample separate (default) and all samples together
 3) Call SVs using ngmlr/SNIFFLES/SURVIVOR
+  * NOTE: as of 10/17/2018, there seems to be a bug in SURVIVOR with collecting read-support \
+data which is causing issues with aggregating individual VCFs, calling genotypes, etc.
+  * need to wait for update/correction before re-run pipeline and look at genotypes in combined \
+files
 4) Call SVs using VarScan
 5) General/summary statistics
 5) Generate statistics that indicate the quality of SV calling

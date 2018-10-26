@@ -144,6 +144,9 @@ for(i in seq(length(samp_hist_list))){
 dev.off()
 ###########
 
+quit(save = 'no')
+
+
 test_data <- indel_len_df[which(indel_len_df$samp == samp_names[1]),]
 test_data_sub1 <- indel_len_df[which(test_data$SV_caller == callers[1]), ]
 test_g <- ggplot(data = test_data_sub1) +
@@ -157,5 +160,4 @@ test_g
 dev.off()
 
 
-quit(save = 'no')
 
