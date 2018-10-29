@@ -6,34 +6,40 @@
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
-
-######
-# SANDBOX
-
-# New PacBio caller
-# Process the Combo file
 data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
 combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
-
 combo_vcf_0 <- read.table(combo_file_tot, sep = '\t', stringsAsFactors = F)
-combo_vcf_0$full_name <- paste(combo_vcf_0[,1], combo_vcf_0[,2], sep = '_')
 
-combo_dup_inds <- which(duplicated(combo_vcf_0$full_name))
-combo_vcf <- combo_vcf_0[-combo_dup_inds,]
+# file containing amount of missing data in each vcf
+newPB_miss_geno_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp/newPB_missing_genos.txt'
+newPB_miss <- read.table(newPB_miss_geno_file, header = T, sep = '\t', 
+  stringsAsFactors = F)
 
-combo_info_list <- strsplit(combo_vcf[ ,8], split = ';')
-combo_sv_vec <- gsub('SVTYPE=', '', unlist(lapply(combo_info_list, function(x) x[1])))
-combo_vcf$type <- combo_sv_vec
+# SET CONSTANTS #
 
-combo_vcf_indel <- combo_vcf[grep('DEL|INS', combo_vcf$type), ]
+# SET VARIABLES #
 
-combo_vcf_indel$sv_length <- abs(sapply(combo_vcf_indel[,8],
-  function(x) as.numeric(gsub('SVLEN=', '',
-  unlist(strsplit(x, split = ';'))[3]))))
+# SET OUTPUTS #
+## table of type of SVs in each of the vcfs, including combo.vcf
+info_out_sub <- 'tmp/newPB_SV_gen_info.txt'
+info_out_file <- paste(data_dir, info_out_sub, sep = '')
 
-# functions to process the individual files
+## table with information about number of SVs/indels found in indiviual files
+##  but NOT the combo.vcf file
+indiv_sv_out_sub <- 'tmp/newPB_indiv_SV.txt'
+indiv_sv_out_file <- paste(data_dir, indiv_sv_out_sub, sep = '')
 
+## table of SV's NOT in combo.vcf showing how many are shared by different
+##   numbers of individual SVs
+indiv_sv_tab_out_sub <- 'tmp/newPB_indiv_SV_table.txt'
+indiv_sv_tab_out_file <- paste(data_dir, indiv_sv_tab_out_sub, sep = '')
+
+## table of sequencing output vs SVs in the vcfs
+sv_output_out_sub <- 'tmp/newPB_SV_seqOut.txt'
+sv_output_out_file <- paste(data_dir, sv_output_out_sub, sep = '')
+
+# FUNCTIONS TO PROCESS INDIVIDUAL FILES #
 load_ind_pbnew_vcf <- function(in_file){
   tmp_vcf_0 <- read.table(in_file, sep = '\t', stringsAsFactors = F)
   tmp_vcf_0$full_name <- paste(tmp_vcf_0[,1], tmp_vcf_0[,2], sep = '_')
@@ -47,9 +53,9 @@ load_ind_pbnew_vcf <- function(in_file){
 }
 
 # Test function
-paxl_file <- 'ref.PAXL.vcf'
-paxl_file_tot <- paste(data_dir, paxl_file, sep = '')
-test_paxl <- load_ind_pbnew_vcf(paxl_file_tot)
+## paxl_file <- 'ref.PAXL.vcf'
+## paxl_file_tot <- paste(data_dir, paxl_file, sep = '')
+## test_paxl <- load_ind_pbnew_vcf(paxl_file_tot)
 
 gen_ind_uni_df <- function(indiv_df, combo_df){
   # generate data.frame of unique/not-shared positions in the individual vs 
@@ -75,7 +81,7 @@ gen_ind_uni_df <- function(indiv_df, combo_df){
 }
 
 # Test function
-test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = combo_vcf)
+## test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = combo_vcf)
 
 gen_nonoverlap_df <- function(uni_ind_df, combo_df, use_svsize = T, 
   dist_cut = 100, size_cut = 0){
@@ -93,7 +99,7 @@ gen_nonoverlap_df <- function(uni_ind_df, combo_df, use_svsize = T,
 }
 
 # Test function
-test_NO_paxl <- gen_nonoverlap_df(uni_ind_df = test_paxl_2, use_svsize = T)
+## test_NO_paxl <- gen_nonoverlap_df(uni_ind_df = test_paxl_2, use_svsize = T)
 # NOTE: this is with no size cutoff - will eventually want to use 50bp as cutoff
 
 load_to_nonoverlap_df <- function(in_file, combo_df, use_svsize = T, 
@@ -108,9 +114,132 @@ load_to_nonoverlap_df <- function(in_file, combo_df, use_svsize = T,
 }
 
 # Test function
-paxl_full_process <- load_to_nonoverlap_df(in_file = paxl_file_tot, 
-  combo_df = combo_vcf)
+## paxl_full_process <- load_to_nonoverlap_df(in_file = paxl_file_tot, 
+##  combo_df = combo_vcf)
 
+gen_indel_raw_df <- function(indiv_df){
+  # generate data.frame from raw VCF of insertions and deletions  and 
+  #   include lengths
+  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
+  indiv_indels <- indiv_df[-indiv_bnd_inv_inds,]
+  indiv_indels$sv_length <- abs(sapply(indiv_indels[,8],
+    function(x) as.numeric(gsub('SVLEN=', '',
+    unlist(strsplit(x, split = ';'))[3]))))
+  return(indiv_indels)
+}
+
+# PLAN: For each sample, generate DF of SVs in combo but NOT in the 
+#  individual DF 
+gen_ind_missing_df <- function(indiv_df, combo_df){
+  # generate data.frame of SVs in the combo.vcf but missing from the
+  #   individual file
+## CONTINTURE FROM HERE
+  indiv_share_inds <- which(indiv_df$full_name %in% combo_df$full_name)
+  # combo_share_inds <- which(combo_df$full_name %in% indiv_df$full_name)
+  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
+  indiv_uni <- indiv_df[-union(indiv_share_inds, indiv_bnd_inv_inds),]
+  indiv_uni$dist_closest_combo <- NA
+  # 
+  for(chrom in unique(indiv_uni[,1])){
+    tmp_combo_inds <- grep(chrom, combo_df[,1])
+    tmp_samp_inds <- grep(chrom, indiv_uni[,1])
+    for(i in tmp_samp_inds){
+      indiv_uni$dist_closest_combo[i] <- min(
+        abs(combo_df[tmp_combo_inds, 2] - indiv_uni[i,2]))
+    }
+  }
+  indiv_uni$sv_length <- abs(sapply(indiv_uni[,8],
+    function(x) as.numeric(gsub('SVLEN=', '',
+    unlist(strsplit(x, split = ';'))[3]))))
+  return(indiv_uni)
+}
+##################
+# For new PacBio Caller
+# Get Number of SVs from each file
+all_vcf_files <- system(paste('ls ', data_dir, '*vcf', sep = ''), intern = T)
+
+processed_vcfs_all <- lapply(all_vcf_files, load_ind_pbnew_vcf)
+num_svs_all <- unlist(lapply(processed_vcfs_all, nrow))
+
+sv_type_mat <- matrix(unlist(lapply(processed_vcfs_all, 
+  function(x) table(x$type))), byrow = T, ncol = 4)
+colnames(sv_type_mat) <- names(table(processed_vcfs_all[[1]]$type))
+
+vcf_info_df <- data.frame(file = gsub(data_dir, '', all_vcf_files), 
+  num_SVs = num_svs_all, sv_type_mat, stringsAsFactors = F)
+
+write.table(vcf_info_df, file = info_out_file, quote = F, sep = '\t', 
+  row.names = F, col.names= T)
+
+#######
+all_vcf_files <- system(paste('ls ', data_dir, '*vcf', sep = ''), intern = T)
+
+processed_vcfs_all <- lapply(all_vcf_files, load_ind_pbnew_vcf)
+num_svs_all <- unlist(lapply(processed_vcfs_all, nrow))
+
+sv_type_mat <- matrix(unlist(lapply(processed_vcfs_all,
+  function(x) table(x$type))), byrow = T, ncol = 4)
+colnames(sv_type_mat) <- names(table(processed_vcfs_all[[1]]$type))
+
+vcf_info_df <- data.frame(file = gsub(data_dir, '', all_vcf_files),
+  num_SVs = num_svs_all, sv_type_mat, stringsAsFactors = F)
+
+n_indels <- apply(vcf_info_df[,c('DEL', 'INS')], 1, sum)
+
+n_miss_indels <- n_indels[1] - n_indels
+
+indiv_vcf_files <- system(paste('ls ', data_dir, 'ref.P*vcf', sep = ''),
+  intern = T)
+
+raw_vcfs <- lapply(indiv_vcf_files, load_ind_pbnew_vcf)
+
+########
+# Sequencing Output vs # SVs and missingness
+
+# sv_info <- read.table(info_out_file, header = T, stringsAsFactors = F, 
+#  sep = '\t') 
+sv_info <- vcf_info_df
+
+samp_meta$newPB_num_SVs <- NA
+
+for(i in seq(nrow(samp_meta))){
+  sv_ind <- grep(samp_meta$lib_name[i], sv_info$file)
+  samp_meta$newPB_num_SVs[i] <- sv_info$num_SVs[sv_ind]
+}
+
+sv_and_output <- samp_meta[ , c('lib_name', 'tot_reads', 'singlepass_reads', 
+  'X20kb_reads', 'newPB_num_SVs')]
+
+sv_and_output$n_miss_in_combo <- NA
+
+for(j in seq(nrow(sv_and_output))){
+  miss_ind <- grep(sv_and_output$lib_name[j], newPB_miss$lib)
+  sv_and_output$n_miss_in_combo[j] <- newPB_miss[miss_ind, 2]
+}
+
+write.table(sv_and_output, file = sv_output_out_file, quote = F, sep = '\t',
+  row.names = F, col.names = T)
+
+###########
+# Calculate numer and percentage of Indels detected in individual files but
+#   NOT in the combo.vcf file
+## Process the Combo file
+combo_vcf_0$full_name <- paste(combo_vcf_0[,1], combo_vcf_0[,2], sep = '_')
+combo_dup_inds <- which(duplicated(combo_vcf_0$full_name))
+combo_vcf <- combo_vcf_0[-combo_dup_inds,]
+
+combo_info_list <- strsplit(combo_vcf[ ,8], split = ';')
+combo_sv_vec <- gsub('SVTYPE=', '', unlist(lapply(combo_info_list, 
+  function(x) x[1])))
+combo_vcf$type <- combo_sv_vec
+
+combo_vcf_indel <- combo_vcf[grep('DEL|INS', combo_vcf$type), ]
+
+combo_vcf_indel$sv_length <- abs(sapply(combo_vcf_indel[,8],
+  function(x) as.numeric(gsub('SVLEN=', '',
+  unlist(strsplit(x, split = ';'))[3]))))
+
+## Process Individual Files
 indiv_vcf_files <- system(paste('ls ', data_dir, 'ref.P*vcf', sep = ''), 
   intern = T)
 
@@ -144,17 +273,6 @@ indiv_sv_df$per_not_in_combo <- (indiv_sv_df$indels_not_in_comb /
 num_indiv_50bp_indels <-  unlist(lapply(indiv_NO_50bp_sites, function(x)
   length(grep('INS|DEL', x$type))))
 
-gen_indel_raw_df <- function(indiv_df){
-  # generate data.frame from raw VCF of insertions and deletions  and 
-  #   include lengths
-  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
-  indiv_indels <- indiv_df[-indiv_bnd_inv_inds,]
-  indiv_indels$sv_length <- abs(sapply(indiv_indels[,8],
-    function(x) as.numeric(gsub('SVLEN=', '',
-    unlist(strsplit(x, split = ';'))[3]))))
-  return(indiv_indels)
-}
-
 raw_indel_len_vcfs <- lapply(raw_vcfs, gen_indel_raw_df)
 
 raw_50bp_vcfs <- lapply(raw_indel_len_vcfs, 
@@ -170,12 +288,11 @@ indiv_sv_df$per_50bp_not_in_combo <- (indiv_sv_df$indels_50bp_not_in_combo /
 
 indiv_sv_df <- indiv_sv_df[order(indiv_sv_df$samp), ]
 
-indiv_sv_out_file <- paste(data_dir, 'tmp/newPB_indiv_SV.txt', sep = '')
 write.table(indiv_sv_df, file = indiv_sv_out_file, quote = F, sep = '\t',
   row.names = F, col.names = T)
 
-#######
-# Shared SVs NOT in combo VCF file
+##############
+# Tally up SVs NOT in combo.vcf but found in individual files
 indiv_NO_site_names_all <- unlist(lapply(indiv_nonoverlap_sites, 
   function(x) x$full_name))
 
@@ -190,7 +307,6 @@ indiv_NO_50bp_sites <- lapply(indiv_nonoverlap_sites,
 indiv_NO_50bp_names_all <- unlist(lapply(indiv_NO_50bp_sites, 
   function(x) x$full_name))
 
-
 tab_NO50 <- table(table(indiv_NO_50bp_names_all))
 tab_NO50
 #    1    2    3    4    5    6    7    8    9   10 
@@ -201,8 +317,6 @@ indiv_NO_tab_df <- data.frame(
   all_indels = as.vector(indiv_NO_site_tab), 
   indels_50bp = as.vector(tab_NO50), stringsAsFactors = F)
 
-indiv_sv_tab_out_file <- paste(data_dir, 'tmp/newPB_indiv_SV_table.txt', 
-  sep = '')
 write.table(indiv_NO_tab_df, file = indiv_sv_tab_out_file, quote = F, 
   sep = '\t', row.names = F, col.names = T)
 
@@ -223,8 +337,9 @@ sum(indiv_NO_tab_df$all_indels[2:10]) / n_indels_in_combo
 sum(indiv_NO_tab_df$indels_50bp[2:10]) / n_indels_50bp_in_combo
 # [1] 0.01659873
 
-
-
+quit(save = 'no')
+########
+# Sandbox
 
 weird_sites <- names(tab_NO50)[which(tab_NO50 == 10)]
 
@@ -235,61 +350,3 @@ for(ws in weird_sites){
     byrow = T, ncol = ncol(indiv_nonoverlap_sites[[1]]))
 }
 
-#####
-# Get Number of SVs from each file
-all_vcf_files <- system(paste('ls ', data_dir, '*vcf', sep = ''), intern = T)
-
-processed_vcfs_all <- lapply(all_vcf_files, load_ind_pbnew_vcf)
-num_svs_all <- unlist(lapply(processed_vcfs_all, nrow))
-
-sv_type_mat <- matrix(unlist(lapply(processed_vcfs_all, 
-  function(x) table(x$type))), byrow = T, ncol = 4)
-colnames(sv_type_mat) <- names(table(processed_vcfs_all[[1]]$type))
-
-vcf_info_df <- data.frame(file = gsub(data_dir, '', all_vcf_files), 
-  num_SVs = num_svs_all, sv_type_mat, stringsAsFactors = F)
-
-info_out_file <- paste(data_dir, 'tmp/newPB_SV_gen_info.txt', sep = '')
-write.table(vcf_info_df, file = info_out_file, quote = F, sep = '\t', 
-  row.names = F, col.names= T)
-
-
-####
-# Sequencing Output vs # SVs and missingness
-
-data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
-
-samp_meta_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
-samp_meta <- read.table(samp_meta_file, header = T, stringsAsFactors = F)
-
-sv_info_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp/newPB_SV_gen_info.txt'
-
-sv_info <- read.table(sv_info_file, header = T, stringsAsFactors = F, 
-  sep = '\t') 
-
-newPB_miss_geno_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp/newPB_missing_genos.txt'
-newPB_miss <- read.table(newPB_miss_geno_file, header = T, sep = '\t', 
-  stringsAsFactors = F)
-
-samp_meta$newPB_num_SVs <- NA
-
-for(i in seq(nrow(samp_meta))){
-  sv_ind <- grep(samp_meta$lib_name[i], sv_info$file)
-  samp_meta$newPB_num_SVs[i] <- sv_info$num_SVs[sv_ind]
-}
-
-sv_and_output <- samp_meta[ , c('lib_name', 'tot_reads', 'singlepass_reads', 
-  'X20kb_reads', 'newPB_num_SVs')]
-
-sv_and_output$n_miss_in_combo <- NA
-
-for(j in seq(nrow(sv_and_output))){
-  miss_ind <- grep(sv_and_output$lib_name[j], newPB_miss$lib)
-  sv_and_output$n_miss_in_combo[j] <- newPB_miss[miss_ind, 2]
-}
-
-sv_output_out_file <- paste(data_dir, 'tmp/newPB_SV_seqOut.txt', sep = '')
-write.table(sv_and_output, file = sv_output_out_file, quote = F, sep = '\t',
-  row.names = F, col.names = T)
-
-quit(save = 'no')
