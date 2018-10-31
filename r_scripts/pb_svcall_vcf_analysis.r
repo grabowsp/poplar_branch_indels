@@ -1,6 +1,9 @@
 # Script to look at PacBio SV calling VCF files
 
 # LOAD LIBRARIES #
+## functions written to analyse PacBio SV VCFs
+function_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_analysis_functions.r'
+source(function_file)
 
 # LOAD DATA #
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
@@ -9,9 +12,9 @@ samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
 combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
-combo_vcf_0 <- read.table(combo_file_tot, sep = '\t', stringsAsFactors = F)
+# combo_vcf_0 <- read.table(combo_file_tot, sep = '\t', stringsAsFactors = F)
 
-# file containing amount of missing data in each vcf
+## file containing amount of missing data in each vcf
 newPB_miss_geno_file <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/tmp/newPB_missing_genos.txt'
 newPB_miss <- read.table(newPB_miss_geno_file, header = T, sep = '\t', 
   stringsAsFactors = F)
@@ -39,120 +42,6 @@ indiv_sv_tab_out_file <- paste(data_dir, indiv_sv_tab_out_sub, sep = '')
 sv_output_out_sub <- 'tmp/newPB_SV_seqOut.txt'
 sv_output_out_file <- paste(data_dir, sv_output_out_sub, sep = '')
 
-# FUNCTIONS TO PROCESS INDIVIDUAL FILES #
-load_ind_pbnew_vcf <- function(in_file){
-  tmp_vcf_0 <- read.table(in_file, sep = '\t', stringsAsFactors = F)
-  tmp_vcf_0$full_name <- paste(tmp_vcf_0[,1], tmp_vcf_0[,2], sep = '_')
-  tmp_dup_inds <- which(duplicated(tmp_vcf_0$full_name))
-  tmp_vcf <- tmp_vcf_0[-tmp_dup_inds, ]
-  tmp_info_list <- strsplit(tmp_vcf[ ,8], split = ';')
-  tmp_sv_vec <- gsub('SVTYPE=', '', 
-    unlist(lapply(tmp_info_list, function(x) x[1])))
-  tmp_vcf$type <- tmp_sv_vec
-  return(tmp_vcf)
-}
-
-# Test function
-## paxl_file <- 'ref.PAXL.vcf'
-## paxl_file_tot <- paste(data_dir, paxl_file, sep = '')
-## test_paxl <- load_ind_pbnew_vcf(paxl_file_tot)
-
-gen_ind_uni_df <- function(indiv_df, combo_df){
-  # generate data.frame of unique/not-shared positions in the individual vs 
-  #  combofile
-  indiv_share_inds <- which(indiv_df$full_name %in% combo_df$full_name)
-  # combo_share_inds <- which(combo_df$full_name %in% indiv_df$full_name)
-  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
-  indiv_uni <- indiv_df[-union(indiv_share_inds, indiv_bnd_inv_inds),]
-  indiv_uni$dist_closest_combo <- NA
-  # 
-  for(chrom in unique(indiv_uni[,1])){
-    tmp_combo_inds <- grep(chrom, combo_df[,1])
-    tmp_samp_inds <- grep(chrom, indiv_uni[,1])
-    for(i in tmp_samp_inds){
-      indiv_uni$dist_closest_combo[i] <- min(
-        abs(combo_df[tmp_combo_inds, 2] - indiv_uni[i,2]))
-    }
-  }
-  indiv_uni$sv_length <- abs(sapply(indiv_uni[,8], 
-    function(x) as.numeric(gsub('SVLEN=', '',
-    unlist(strsplit(x, split = ';'))[3]))))
-  return(indiv_uni)
-}
-
-# Test function
-## test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = combo_vcf)
-
-gen_nonoverlap_df <- function(uni_ind_df, combo_df, use_svsize = T, 
-  dist_cut = 100, size_cut = 0){
-  # function to generate data.frame of SVs in individual files that are not 
-  #   present in the combo file
-  if(use_svsize){
-    tmp_nonover_inds <- which((uni_ind_df$dist_closest_combo - 
-      (2*uni_ind_df$sv_length))> 0)
-  } else {
-    tmp_nonover_inds <- which(uni_ind_df$dist_closest_combo > dist_cut)
-  }
-  tmp_big_NO_inds <- intersect(tmp_nonover_inds, which(
-    uni_ind_df$sv_length > size_cut))
-  return(uni_ind_df[tmp_big_NO_inds, ])
-}
-
-# Test function
-## test_NO_paxl <- gen_nonoverlap_df(uni_ind_df = test_paxl_2, use_svsize = T)
-# NOTE: this is with no size cutoff - will eventually want to use 50bp as cutoff
-
-load_to_nonoverlap_df <- function(in_file, combo_df, use_svsize = T, 
-  dist_cut = 100, size_cut = 0){
-  # load individual file and process to get non-overlapping positions
-  tmp_df_1 <- load_ind_pbnew_vcf(in_file = in_file)
-  tmp_df_2 <- gen_ind_uni_df(indiv_df = tmp_df_1, combo_df = combo_df)
-  tmp_df_3 <- gen_nonoverlap_df(uni_ind_df = tmp_df_2, combo_df = combo_df, 
-                use_svsize = use_svsize, dist_cut = dist_cut, 
-                size_cut = size_cut)
-  return(tmp_df_3)
-}
-
-# Test function
-## paxl_full_process <- load_to_nonoverlap_df(in_file = paxl_file_tot, 
-##  combo_df = combo_vcf)
-
-gen_indel_raw_df <- function(indiv_df){
-  # generate data.frame from raw VCF of insertions and deletions  and 
-  #   include lengths
-  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
-  indiv_indels <- indiv_df[-indiv_bnd_inv_inds,]
-  indiv_indels$sv_length <- abs(sapply(indiv_indels[,8],
-    function(x) as.numeric(gsub('SVLEN=', '',
-    unlist(strsplit(x, split = ';'))[3]))))
-  return(indiv_indels)
-}
-
-# PLAN: For each sample, generate DF of SVs in combo but NOT in the 
-#  individual DF 
-gen_ind_missing_df <- function(indiv_df, combo_df){
-  # generate data.frame of SVs in the combo.vcf but missing from the
-  #   individual file
-## CONTINTURE FROM HERE
-  indiv_share_inds <- which(indiv_df$full_name %in% combo_df$full_name)
-  # combo_share_inds <- which(combo_df$full_name %in% indiv_df$full_name)
-  indiv_bnd_inv_inds <- grep('BND|INV', indiv_df$type)
-  indiv_uni <- indiv_df[-union(indiv_share_inds, indiv_bnd_inv_inds),]
-  indiv_uni$dist_closest_combo <- NA
-  # 
-  for(chrom in unique(indiv_uni[,1])){
-    tmp_combo_inds <- grep(chrom, combo_df[,1])
-    tmp_samp_inds <- grep(chrom, indiv_uni[,1])
-    for(i in tmp_samp_inds){
-      indiv_uni$dist_closest_combo[i] <- min(
-        abs(combo_df[tmp_combo_inds, 2] - indiv_uni[i,2]))
-    }
-  }
-  indiv_uni$sv_length <- abs(sapply(indiv_uni[,8],
-    function(x) as.numeric(gsub('SVLEN=', '',
-    unlist(strsplit(x, split = ';'))[3]))))
-  return(indiv_uni)
-}
 ##################
 # For new PacBio Caller
 # Get Number of SVs from each file
@@ -170,28 +59,6 @@ vcf_info_df <- data.frame(file = gsub(data_dir, '', all_vcf_files),
 
 write.table(vcf_info_df, file = info_out_file, quote = F, sep = '\t', 
   row.names = F, col.names= T)
-
-#######
-all_vcf_files <- system(paste('ls ', data_dir, '*vcf', sep = ''), intern = T)
-
-processed_vcfs_all <- lapply(all_vcf_files, load_ind_pbnew_vcf)
-num_svs_all <- unlist(lapply(processed_vcfs_all, nrow))
-
-sv_type_mat <- matrix(unlist(lapply(processed_vcfs_all,
-  function(x) table(x$type))), byrow = T, ncol = 4)
-colnames(sv_type_mat) <- names(table(processed_vcfs_all[[1]]$type))
-
-vcf_info_df <- data.frame(file = gsub(data_dir, '', all_vcf_files),
-  num_SVs = num_svs_all, sv_type_mat, stringsAsFactors = F)
-
-n_indels <- apply(vcf_info_df[,c('DEL', 'INS')], 1, sum)
-
-n_miss_indels <- n_indels[1] - n_indels
-
-indiv_vcf_files <- system(paste('ls ', data_dir, 'ref.P*vcf', sep = ''),
-  intern = T)
-
-raw_vcfs <- lapply(indiv_vcf_files, load_ind_pbnew_vcf)
 
 ########
 # Sequencing Output vs # SVs and missingness
@@ -224,20 +91,7 @@ write.table(sv_and_output, file = sv_output_out_file, quote = F, sep = '\t',
 # Calculate numer and percentage of Indels detected in individual files but
 #   NOT in the combo.vcf file
 ## Process the Combo file
-combo_vcf_0$full_name <- paste(combo_vcf_0[,1], combo_vcf_0[,2], sep = '_')
-combo_dup_inds <- which(duplicated(combo_vcf_0$full_name))
-combo_vcf <- combo_vcf_0[-combo_dup_inds,]
-
-combo_info_list <- strsplit(combo_vcf[ ,8], split = ';')
-combo_sv_vec <- gsub('SVTYPE=', '', unlist(lapply(combo_info_list, 
-  function(x) x[1])))
-combo_vcf$type <- combo_sv_vec
-
-combo_vcf_indel <- combo_vcf[grep('DEL|INS', combo_vcf$type), ]
-
-combo_vcf_indel$sv_length <- abs(sapply(combo_vcf_indel[,8],
-  function(x) as.numeric(gsub('SVLEN=', '',
-  unlist(strsplit(x, split = ';'))[3]))))
+combo_vcf_indel <- make_combo_indel_df(combo_file_tot)
 
 ## Process Individual Files
 indiv_vcf_files <- system(paste('ls ', data_dir, 'ref.P*vcf', sep = ''), 
@@ -270,6 +124,9 @@ indiv_sv_df <- data.frame(lib = lib_names, samp = samp_names,
 indiv_sv_df$per_not_in_combo <- (indiv_sv_df$indels_not_in_comb / 
   indiv_sv_df$tot_indels)
 
+indiv_NO_50bp_sites <- lapply(indiv_nonoverlap_sites,
+  function(x) x[which(x$sv_length >= 50), ])
+
 num_indiv_50bp_indels <-  unlist(lapply(indiv_NO_50bp_sites, function(x)
   length(grep('INS|DEL', x$type))))
 
@@ -286,10 +143,28 @@ indiv_sv_df$indels_50bp_not_in_combo <- num_indiv_50bp_indels
 indiv_sv_df$per_50bp_not_in_combo <- (indiv_sv_df$indels_50bp_not_in_combo /
   indiv_sv_df$tot_indels_50bp)
 
+# SVs in combo.vcf but not individual VCFs
+indiv_miss_sites <- lapply(raw_vcfs, gen_ind_missing_df, 
+  combo_df = combo_vcf_indel)
+
+n_miss_in_indiv_from_combo <- unlist(lapply(indiv_miss_sites, nrow))
+
+n_miss_50bp_in_indiv_from_combo <- unlist(lapply(indiv_miss_sites, 
+  function(x) sum(x$sv_length >= 50)))
+
+indiv_sv_df$indels_not_in_indiv <- n_miss_in_indiv_from_combo
+indiv_sv_df$per_not_in_indiv <- (indiv_sv_df$indels_not_in_indiv / 
+  indiv_sv_df$tot_indels)
+
+indiv_sv_df$indels_50bp_not_in_indiv <- n_miss_50bp_in_indiv_from_combo
+indiv_sv_df$per_50bp_not_in_indiv <- (indiv_sv_df$indels_50bp_not_in_indiv / 
+  indiv_sv_df$tot_indels_50bp)
+
 indiv_sv_df <- indiv_sv_df[order(indiv_sv_df$samp), ]
 
 write.table(indiv_sv_df, file = indiv_sv_out_file, quote = F, sep = '\t',
   row.names = F, col.names = T)
+
 
 ##############
 # Tally up SVs NOT in combo.vcf but found in individual files
@@ -299,10 +174,10 @@ indiv_NO_site_names_all <- unlist(lapply(indiv_nonoverlap_sites,
 indiv_NO_site_tab <- table(table(indiv_NO_site_names_all))
 indiv_NO_site_tab
 #     1     2     3     4     5     6     7     8     9    10 
-# 12062  2125  1193   734   548   453   339   235   162    58
+# 12060  2125  1192   736   548   453   340   234   163    58
 
-indiv_NO_50bp_sites <- lapply(indiv_nonoverlap_sites, 
-  function(x) x[which(x$sv_length >= 50), ])
+#indiv_NO_50bp_sites <- lapply(indiv_nonoverlap_sites, 
+#  function(x) x[which(x$sv_length >= 50), ])
 
 indiv_NO_50bp_names_all <- unlist(lapply(indiv_NO_50bp_sites, 
   function(x) x$full_name))
@@ -310,32 +185,70 @@ indiv_NO_50bp_names_all <- unlist(lapply(indiv_NO_50bp_sites,
 tab_NO50 <- table(table(indiv_NO_50bp_names_all))
 tab_NO50
 #    1    2    3    4    5    6    7    8    9   10 
-# 1635  200  100   69   40   35   30   18   11    6 
+# 1635  200  100   69   41   35   30   18   11    6
+
+indiv_miss_site_names_all <- unlist(lapply(indiv_miss_sites, 
+  function(x) x$full_name))
+
+indiv_miss_site_tab <- table(table(indiv_miss_site_names_all))
+indiv_miss_site_tab
+#   1    2    3    4    5    6    7    8    9   10   11   12   14   16   18
+#8316 3691 2209 1493 1192 1079 1054 1092 1534  579    2    4    5    2    1  
+# 20  21 
+#  1   1
+# there are more than 10 because some positions contain 2 different sized
+#  indels so they will be double-counted
+
+indiv_miss_50bp_names_all <- unlist(lapply(indiv_miss_sites, 
+  function(x) x$full_name[x$sv_length >= 50]))
+
+indiv_miss_50bp_site_tab <- table(table(indiv_miss_50bp_names_all))
+indiv_miss_50bp_site_tab
+#    1    2    3    4    5    6    7    8    9   10   11   12   14   16   20
+# 4006 1531  828  568  484  416  514  537  768  167    1    1    3    1    1
+# 21
+#  1
 
 indiv_NO_tab_df <- data.frame(
-  n_samps_with_SV_missing_in_combo = as.numeric(names(indiv_NO_site_tab)), 
-  all_indels = as.vector(indiv_NO_site_tab), 
-  indels_50bp = as.vector(tab_NO50), stringsAsFactors = F)
+  n_samps_with_SV_missing_in_combo = as.numeric(
+    names(indiv_NO_site_tab))[c(1:10)], 
+  all_indels = as.vector(indiv_NO_site_tab)[c(1:10)], 
+  indels_50bp = as.vector(tab_NO50)[c(1:10)], 
+  in_combo_not_indiv = as.vector(indiv_miss_site_tab)[c(1:10)],
+  in_combo_not_indiv_50bp = as.vector(indiv_miss_50bp_site_tab)[c(1:10)],
+  stringsAsFactors = F)
+# note: this doesn't fully account for positions that are double-counted,
+#   by those are very few postions so should affect overall conclustions
 
 write.table(indiv_NO_tab_df, file = indiv_sv_tab_out_file, quote = F, 
   sep = '\t', row.names = F, col.names = T)
 
 sum(indiv_NO_tab_df$all_indels[2:10])
-# 5847
+# 5849
 sum(indiv_NO_tab_df$indels_50bp[2:10])
-# 509
+# 510
 
 n_indels_in_combo <- nrow(combo_vcf_indel)
-# [1] 56464
+# [1] 56794
 
 n_indels_50bp_in_combo <- sum(combo_vcf_indel$sv_length >= 50)
-# [1] 30665
+# [1] 30859
 
 sum(indiv_NO_tab_df$all_indels[2:10]) / n_indels_in_combo
-# [1] 0.1035527
+# [1] 0.1029862
 
 sum(indiv_NO_tab_df$indels_50bp[2:10]) / n_indels_50bp_in_combo
-# [1] 0.01659873
+# [1] 0.01652678
+
+sum(indiv_NO_tab_df$in_combo_not_indiv[2:10])
+# [1] 13923
+sum(indiv_NO_tab_df$in_combo_not_indiv[2:10]) / n_indels_in_combo
+# [1] 0.2451491
+
+sum(indiv_NO_tab_df$in_combo_not_indiv_50bp[2:10])
+# [1] 5813
+sum(indiv_NO_tab_df$in_combo_not_indiv_50bp[2:10]) / n_indels_50bp_in_combo
+# [1] 0.1883729
 
 quit(save = 'no')
 ########
