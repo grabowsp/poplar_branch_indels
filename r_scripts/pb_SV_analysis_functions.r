@@ -45,18 +45,25 @@ gen_indel_raw_df <- function(indiv_df){
 
 # test_paxl_raw <- gen_indel_raw_df(test_paxl)
 
-# NEXT STEPS: Annotate this function, including example, update other functions
-#  to include info about this function; then continue with function at end of
-#  page
-make_combo_indel_df <- function(combo_file){
+make_combo_indel_df <- function(combo_file, n_head_lines = 100){
   # Function to load and process combo VCF so that have SV length for all
   #  InDels
   # INPUTS #
   # combo_file = full path for combined VCF
+  # n_head_lines = number of lines to scan in to get the full header from the
+  #                  vcf
   # OUTPUTS #
   # data.frame for InDels that includes the length of the SVs
   #############3
   combo_vcf_0 <- read.table(combo_file, sep = '\t', stringsAsFactors = F)
+  # add header to data.frame
+  combo_vcf_header <- scan(combo_file_tot, nlines = n_head_lines, 
+    what = 'character', sep = '\n', quiet = T)
+  col_info_ind <- grep('#CHROM', combo_vcf_header, fixed = T)
+  col_info <- gsub('#', '', unlist(strsplit(combo_vcf_header[col_info_ind], 
+    split = '\t')), fixed = T)
+  colnames(combo_vcf_0) <- col_info
+  #
   combo_vcf_0$full_name <- paste(combo_vcf_0[,1], combo_vcf_0[,2], sep = '_')
 #  combo_dup_inds <- which(duplicated(combo_vcf_0$full_name))
 #  combo_vcf <- combo_vcf_0[-combo_dup_inds,]
@@ -69,6 +76,10 @@ make_combo_indel_df <- function(combo_file){
   combo_vcf_indel$sv_length <- abs(sapply(combo_vcf_indel[,8],
     function(x) as.numeric(gsub('SVLEN=', '',
     unlist(strsplit(x, split = ';'))[3]))))
+  combo_vcf_indel$full_name_long <- paste(combo_vcf_indel$full_name, 
+    combo_vcf_indel$type, combo_vcf_indel$sv_length, sep = '_')
+  combo_vcf_indel <- combo_vcf_indel[-which(
+    duplicated(combo_vcf_indel$full_name_long)), ]
   return(combo_vcf_indel)
 }
 
