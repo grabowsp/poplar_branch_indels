@@ -3,6 +3,9 @@
 function_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_analysis_functions.r'
 source(function_file)
 
+function_test_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_analysis_functions.test.r'
+# source(function_test_file)
+
 data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
 combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
@@ -10,6 +13,7 @@ combo_df <- make_combo_indel_df(combo_file_tot)
 
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
+# samp_meta[,c('lib_name', 'branch_name')]
 
 ## Remove bad branches
 bad_branches <- c('13.4', '14.1')
@@ -28,47 +32,19 @@ for(bs in bad_samps){
 combo_df_filt <- combo_df[ , -sort(bad_vcf_cols)]
 
 ## find and remove any SVs with missing genotypes in any sample
-first_samp_ind <- which(colnames(combo_df_filt) == 'FORMAT') + 1
-last_samp_ind <- which(colnames(combo_df_filt) == 'full_name') - 1
-
-miss_geno_inds <- c()
-for(sn in c(first_samp_ind:last_samp_ind)){
-  tmp_inds <- grep('.', combo_df_filt[,sn], fixed = T)
-  miss_geno_inds <- c(miss_geno_inds, tmp_inds)
-}
-
-miss_inds_toremove <- unique(miss_geno_inds)
-
-combo_df_2 <- combo_df_filt[-sort(miss_inds_toremove), ]
+combo_df_2 <- remove_missing_combo_SVs(combo_df_filt)
 
 # Extract genotype information. Inclueds
-# converting genos to numeric
-# getting coverage
-# getting number of reads supporting each allele
-combo_df_2[c(1:10), first_samp_ind]
-
-geno_info_list <- list()
-for(s_ind in c(first_samp_ind:last_samp_ind)){
-  samp_name <- colnames(combo_df_2)[s_ind]
-  tmp_geno_list <- strsplit(combo_df_2[ , s_ind], split = ':')
-  tmp_coverage <- as.numeric(unlist(lapply(tmp_geno_list, function(x) x[3])))
-  tmp_num_genos <- unlist(lapply(tmp_geno_list, function(x) 
-    sum(as.numeric(unlist(strsplit(x[1], split = '/'))))))
-  tmp_allele_reads <- matrix(
-    data = unlist(lapply(tmp_geno_list, function(x) 
-      as.numeric(unlist(strsplit(x[2], split = ','))))), 
-    byrow = T, ncol = 2, 
-    dimnames = list(rownames = NULL, colnames = c('n_REF', 'n_ALT')))
-  geno_info_list[[samp_name]] <- list()
-  geno_info_list[[samp_name]][[1]] <- tmp_num_genos
-  geno_info_list[[samp_name]][[2]] <- tmp_coverage
-  geno_info_list[[samp_name]][[3]] <- tmp_allele_reads
-}
+## converting genos to numeric
+## getting coverage
+## getting number of reads supporting each allele
+## combo_df_2[c(1:10), first_samp_ind]
+combo_geno_info_list <- make_allsamp_geno_info_list(combo_df_2)
 
 # generate matrix of coverage
 geno_cov_mat <- matrix(
-  data = unlist(lapply(geno_info_list, function(x) x[[2]])),
-  ncol = length(geno_info_list),
+  data = unlist(lapply(combo_geno_info_list, function(x) x[[2]])),
+  ncol = length(combo_geno_info_list),
   byrow = F)
 
 min_cov_vec <- apply(geno_cov_mat, 1, min)
@@ -95,57 +71,290 @@ min_cov_floor_vec
 # 4) Homozygous call must have at lower than 0.05 allele ratio - this may
 #      need to be adjusted
 
-# I'll try calling my own genotypes
+# Calling my own genotypes
 
-test_ref_ratio <- apply(geno_info_list[[1]][[3]], 1, function(x) x[1]/sum(x))
-test_genos <- rep(NA, times = length(test_ref_ratio))
-test_call_hom_ref <- which(test_ref_ratio < 0.15)
-test_call_hom_alt <- which(test_ref_ratio > 0.85)
-test_call_het <- setdiff(seq(length(test_genos)), 
-  union(test_call_hom_ref, test_call_hom_alt))
-test_genos[test_call_hom_ref] <- 0
-test_genos[test_call_hom_alt] <- 2
-test_genos[test_call_het] <- 1
+combo_filtered_genotypes <- call_allsamp_genotypes(combo_geno_info_list, 
+  min_sv_coverage = 10, het_ratio_cut = 0.15, min_minor_allele_count = 2, 
+  max_hom_ratio = 0.05)
 
-test_too_low_inds <- which(geno_info_list[[1]][[2]] < 10)
-test_min_ratio <- apply(geno_info_list[[1]][[3]], 1, function(x) min(x)/sum(x))
-test_hom_inds <- setdiff(seq(length(test_genos)), test_call_het)
-test_too_skewed_homs <- test_hom_inds[
-  which(test_min_ratio[test_hom_inds] > 0.05)]
+num_nas <- apply(combo_filtered_genotypes, 1, function(x) sum(is.na(x)))
+table(num_nas)
+#     0     1     2     3     4     5     6     7     8 
+# 38057  8185  4267  2692  1777  1067   497   171    38
+## 38k SVs have no missing data
 
-test_na_inds <- union(test_too_low_inds, test_too_skewed_homs)
-test_genos[test_na_inds] <- NA
+poss_nas <- c(0:8)
+na_min_vec <- c()
+for(pn in poss_nas){
+  tmp_num <- sum(num_nas <= pn)
+  na_min_vec <- c(na_min_vec, tmp_num)
+}
+names(na_min_vec) <- poss_nas
+na_min_vec
+#     0     1     2     3     4     5     6     7     8 
+# 38057 46242 50509 53201 54978 56045 56542 56713 56751
 
-# NEXT: Turn the above into a function or loop to generate genotypes for
-#  each sample
-#####################
+combo_filt_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0)
+tally_singleton_svs(combo_filt_genos_noNAs)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#  62   25   75   82   74   47   53  247 
+# $het_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#  413   26   31   40   27   14    9   26 
+# $homAlt_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#    6   13    4    3    4    9   16    4 
 
-too_low_inds <- which(min_cov_vec < 10)
+# note: allowing 1 NA generate exact same tally (more SV in genoype matrix
+#  but same numbers of singletons
 
-test_het_inds <- which(geno_info_list[[1]][[1]] == 1)
-test_min_allele_read <- apply(geno_info_list[[1]][[3]], 1, min)
-too_low_hets <- test_het_inds[which(test_min_allele_read[test_het_inds] < 2)]
+genos_noNAs_50 <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0, 
+  min_length = 50)
+tally_singleton_svs(genos_noNAs_50)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#   30    5   39   26   31   10    7   81 
+# $het_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#  46    6    1    8    1    1    2    4 
+# $homAlt_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#    5   11    4    2    4    9   15    3 
 
-test_ratio <- apply(geno_info_list[[1]][[3]], 1, function(x) min(x)/sum(x))
-too_skewed_hets <- test_het_inds[which(test_ratio[test_het_inds] < 0.15)]
+# note: allowing 1 NA generates exact same tally
 
-test_hom_inds <- setdiff(seq(length(geno_info_list[[1]][[1]])), test_het_inds)
-too_skewed_homs <- test_hom_inds[which(test_ratio[test_hom_inds] > 0.02)]
+genos_noNAs_100 <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0, 
+  min_length = 100)
+tally_singleton_svs(genos_noNAs_100)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#   19    2   30   15   21    1    3   35 
+# $het_singletons
+# PAXL PAXN PAYK PAZF PBAT PBAU PBAW 
+#   12    3    1    4    1    1    1 
+# $homAlt_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#    5   10    4    2    4    9   15    3 
 
-min_hom_cov <- 20
+genos_noNAs_1000 <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0,
+  min_length = 1000)
+tally_singleton_svs(genos_noNAs_1000)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAU PBAW 
+#    6    2   11    3   13    1   15 
+# $het_singletons
+# PAXL 
+#    2 
+# $homAlt_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#    3    6    3    2    4    8   14    3
 
-zero_inds <- which(geno_info_list[[1]][[1]] == 0)
-two_inds <- which(geno_info_list[[1]][[1]] == 2)
-homozyg_inds <- sort(union(zero_inds, two_inds))
-homozyg_cov <- geno_info_list[[1]][[2]][homozyg_inds]
-low_cov_hom_inds <- homozyg_inds[which(homozyg_cov < min_hom_cov)]
+del_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0,
+  sv_type = 'DEL')
+tally_singleton_svs(del_genos_noNAs)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#   18    7   26   13   17    4    1   37 
+# $het_singletons
+# PAXL PAYK PAZF PAZH PBAT PBAW 
+#    3    1    1    1    1    3 
+# $homAlt_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#    5   13    4    3    4    9   15    4
 
-# there are a LOT of low-ish coverage SVs with homozygous genotypes. I want
-#   to model the allele ratios in the heterozygotes to try to model the 
-#   accuracy of the genotypes
+ins_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0,
+  sv_type = 'INS')
+tally_singleton_svs(ins_genos_noNAs)
+# $homRef_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#   44   18   49   69   57   43   52  210 
+# $het_singletons
+# PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
+#  410   26   30   39   26   13    9   23 
+# $homAlt_singletons
+# PAXL PBAU 
+#    1    1 
 
-test_ratio <- apply(geno_info_list[[1]][[3]], 1, function(x) x[2]/sum(x))
-intersect(which(test_ratio[homozyg_inds] != 0), which(test_ratio[homozyg_inds] != 1))
+ins_noNAs_numHets <- apply(ins_genos_noNAs, 1, function(x) sum(x == 1))
+table(apply(ins_genos_noNAs[which(ins_noNAs_numHets == 1), ], 1, sum))
+#   1   5  11  13 
+# 576   1   1   1
+# most of the singleton het INSertions are new instance of that SV 
+
+# Assemble into a table
+filt_geno_list_for_singletons <- list(combo_filt_genos_noNAs, genos_noNAs_50, genos_noNAs_100, genos_noNAs_1000, del_genos_noNAs, ins_genos_noNAs)
+
+singleton_res_df <- data.frame(lib = colnames(combo_filtered_genotypes), 
+  stringsAsFactors = F)
+singleton_res_df$branch <- NA
+for(sl in seq(nrow(singleton_res_df))){
+  meta_ind <- which(samp_meta$lib_name == singleton_res_df$lib[sl])
+  singleton_res_df$branch[sl] <- samp_meta$branch_name[meta_ind]
+}
+
+type_labs <- c('homRef', 'het', 'homAlt')
+test_tab <- singleton_res_df
+
+top_lab_vec <- c('InDel_20bp', 'InDel_50bp', 'InDel_100bp', 'InDel_1000bp',
+  'DEL_20bp', 'INS_20bp')
+
+for(k in seq(length(filt_geno_list_for_singletons))){
+  # 
+  tmp_sing_tal <- tally_singleton_svs(filt_geno_list_for_singletons[[k]])
+  top_lab <- top_lab_vec[k]
+  #
+  for(j in seq(length(tmp_sing_tal))){
+    tmp_lab <- paste(top_lab, type_labs[j], sep = '_')
+    tmp_tal <- tmp_sing_tal[[j]]
+    for(i in seq(length(tmp_tal))){
+      tab_ind <- which(singleton_res_df$lib == names(tmp_tal[i]))
+      test_tab[tab_ind, tmp_lab] <- tmp_tal[i]
+    }
+  }
+}
+
+singleton_res_df <- test_tab[order(test_tab$branch), ]
+
+sing_tab_out <- paste(data_dir, 'analysis_results/singleton_SV_tables.tab', 
+  sep = '')
+
+write.table(singleton_res_df, file = sing_tab_out, quote = F, sep = '\t', 
+  row.names = F, col.names = T)
+
+# Some notes:
+# PBAW, 13.2, always has more singleton homozygous Ref SVs, meaning the 
+#  Alt allele is missing ONLY from that sample; PBAW has lower seq depth, but
+#  very close to PAZF/13.5 and PAZF does not show the same pattern
+# PBAU has more large homozygous Alt SVs, meaning the rest of the samples
+#  are heterozygous
+# PAXL(14.3) has noticably more singleton heterozygous genotypes
+# Most singleton homozygous Ref and heterozygous SVs are INSertions; most
+#  singleton homozygous Alt SVs are DELetions. From a technical standpoint,
+#  the singleton homozygous refs are missing the allele so could be that they
+#  didn't have enough coverage to call the SV - should check if that changes
+#  with higher coverage cutoff. Singleton hets are mainly a new/unique
+#  occurance of that INSertion.
+# I'm having trouble making sense of these patterns... maybe looking at other
+#   patterns will help
+
+branch_13_lab <- c(13.1, 13.2, 13.3, 13.5)
+branch_14_lab <- c(14.2, 14.3, 14.4, 14.5)
+
+b13_all_hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
+  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta)
+b13_all_homRef <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
+  branch_name_vec = branch_13_lab, genotype = 0, meta = samp_meta)
+
+b14_all_hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
+  branch_name_vec = branch_14_lab, genotype = 1, meta = samp_meta)
+b14_all_homRef <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_14_lab, genotype = 0, meta = samp_meta)
+
+# Start with clone 14 specific SVs
+b14_specific_hets <- intersect(b14_all_hets, b13_all_homRef)
+length(b14_specific_hets)
+# [1] 32
+# 32 het SVs found ONLY in clone 14
+
+# Out of curiosity, how many are het in 14 and only 1 sample in 13?
+b13_1_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 3)
+length(intersect(b14_all_hets, b13_1_het))
+# [1] 274
+
+b13_2_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 2)
+length(intersect(b14_all_hets, b13_2_het))
+# 275
+
+b13_3_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 1)
+length(intersect(b14_all_hets, b13_3_het))
+# 460
+
+test_4het_allsamps <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), genotype = 1, meta = samp_meta, n_miss = 4)
+# 649
+# 8 choose 4 is 70, 659/70 = 9.4; so should be only 9 or 10 for a set of 
+# 4 samples if totally random; instead have 32, so that's promising...
+
+comb_4samp_combos <- combn(c(1:8), m = 4)
+
+n_diff_vec <- c()
+for(cc in seq(ncol(comb_4samp_combos))){
+  test_branches <- c(branch_13_lab, branch_14_lab)[comb_4samp_combos[ ,cc]]
+  alt_branches <- setdiff(c(branch_13_lab, branch_14_lab), test_branches)
+  test_4hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
+    branch_name_vec = test_branches, genotype = 1, meta = samp_meta, 
+    n_miss = 0)
+  alt_4hom <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+    branch_name_vec = alt_branches, genotype = 0, meta = samp_meta,
+    n_miss = 0)
+  tmp_n_fixed_diff <- length(intersect(test_4hets, alt_4hom))
+  n_diff_vec <- c(n_diff_vec, tmp_n_fixed_diff)
+}
+
+n_diff_vec
+#  [1]   2   0   3   0  38   1   2   0   3   6   1   0   0   0   0   1   1   1   9
+# [20]   0   1   0   0   3   0   2   0   0   1   0   0  12   0   0   0   0   0   0
+# [39]   0   0   0   0   0   0   0   1   0   0   1   2   0  25   1   0   0   2   0
+# [58]   0   1   2   2  12   9   1   0 449   7   8   3  32
+
+# SURPRISE!!!! It turns out, combination 66, which is 13.5, 14.1, 14.2, and 
+#   14.3 has many more unique SVs than either clone-specific combo. Second
+#   highest... combination 5 which is 13.1, 13.2, 13.3, 14.5. Third highest
+#   is clone 14 branches (combination 70) and clone 13 branches are below many
+#   other combinations. WHY?????
+
+b13_3_homAlt <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_13_lab, genotype = 2, meta = samp_meta, n_miss = 1)
+
+
+
+b13_specific_hets <- intersect(b13_all_hets, b14_all_homRef)
+length(b13_specific_hets)
+# [1] 2
+# 2 heterozygous SVs found ONLY in clone 13
+
+
+# What happens if we allow for miss-called 0's (actually 1's)
+b13_all_hets_permissive <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
+  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 1)
+b13_spec_hets_perm <- intersect(union(b13_all_hets, b13_all_hets_permissive), 
+  b14_all_homRef)
+length(b13_spec_hets_perm)
+# [1] 24
+# 22 more clone 13 specific het SVs if allow one sample to NOT be het. These
+#   are either missing genotypes (called 0 but actually 1) or instances
+#   of de novo mutation shared by 3 branches - should be 13.1, 13.2, 13.3
+b13_libs <- get_branch_lib_names(branch_13_lab, meta = samp_meta)
+b13_col_inds <- get_lib_col_inds(combo_filt_genos_noNAs, 
+  lib_name_vec = b13_libs)
+combo_filt_genos_noNAs[b13_spec_hets_perm, b13_col_inds]
+# 2 are 1 in all 4
+# 3 are 1 in all but 13.3 - maybe it's just missing from that one
+# the rest (19) are 1 in all but 13.5, which is sort of what we'd expect
+
+b14_all_hets_permissive <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_14_lab, genotype = 1, meta = samp_meta, n_miss = 1)
+b14_spec_hets_perm <- intersect(union(b14_all_hets, b14_all_hets_permissive),
+  b13_all_homRef)
+length(b14_spec_hets_perm)
+# 551
+# A LOT!
+b14_libs <- get_branch_lib_names(branch_14_lab, meta = samp_meta)
+b14_col_inds <- get_lib_col_inds(combo_filt_genos_noNAs,
+  lib_name_vec = b14_libs)
+combo_filt_genos_noNAs[b14_spec_hets_perm[33:150], b14_col_inds]
+# most of the "permissive" ones are actualy what we'd expect for real, denovo
+#  SVs where they are missing in 14.5 but present in the other 3
+
+
+combo_filt_genos_noNAs
+
+branch_13_het <- 
+
 
 # 1) Identify het SVs
 # 2) Calculate % alt alleles in het calls

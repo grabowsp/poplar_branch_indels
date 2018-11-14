@@ -124,7 +124,7 @@ gen_ind_uni_df <- function(indiv_df, combo_df){
 }
 
 # Test function
-## test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = combo_vcf)
+## test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = test_combo)
 
 gen_nonoverlap_df <- function(uni_ind_df, use_svsize = T,
   dist_cut = 100, size_cut = 0){
@@ -192,7 +192,7 @@ load_to_nonoverlap_df <- function(in_file, combo_df, use_svsize = T,
 
 # Test function
 ## paxl_full_process <- load_to_nonoverlap_df(in_file = paxl_file_tot, 
-##  combo_df = combo_vcf)
+##  combo_df = test_combo)
 
 gen_ind_missing_df <- function(indiv_df, combo_df, use_svsize = T,
   dist_cut = 100, size_cut = 0){
@@ -241,5 +241,354 @@ gen_ind_missing_df <- function(indiv_df, combo_df, use_svsize = T,
 
 # paxl_indiv_miss <- gen_ind_missing_df(indiv_df = test_paxl, 
 #  combo_df = test_combo)
+
+remove_missing_combo_SVs <- function(combo_df){
+  # Remove any SVs from process combined VCF that have missing genotypes in any
+  #   samples
+  # INPUTS #
+  # combo_df = data.frame including info about indels from the combined VCF;
+  #              can be generated using make_combo_indel_df() function
+  # OUTPUTS #
+  # data.frame with same info as combo_df but with any SVs with missing
+  #   genotype data removed
+  ##########
+  first_samp_ind <- which(colnames(combo_df) == 'FORMAT') + 1
+  last_samp_ind <- which(colnames(combo_df) == 'full_name') - 1
+  #
+  miss_geno_inds <- c()
+  for(sn in c(first_samp_ind:last_samp_ind)){
+    tmp_inds <- grep('.', combo_df[,sn], fixed = T)
+    miss_geno_inds <- c(miss_geno_inds, tmp_inds)
+  }
+  #
+  miss_inds_toremove <- unique(miss_geno_inds)
+  #
+  combo_df_2 <- combo_df[-sort(miss_inds_toremove), ]
+  return(combo_df_2)
+}
+
+# test_combo_filt <- remove_missing_combo_SVs(test_combo)
+
+make_ind_geno_info_list <- function(geno_info_vec, sv_names = NULL){
+  # Function to generate list of info about the genotypes of each sample in
+  #   combo_df which is derived from a combined VCF
+  # INPUTS #
+  # geno_info_vec = vector of genotype info with three types of information
+  #                   separated by colons: 1) genotype in X/Z form where
+  #                   0 = reference allele and 1 = alternate allele; 
+  #                   2) number of reads for each allele
+  #                   3) total number of reads at that SV
+  # sv_names = the names of the SVs; can usually come from the 
+  #              'full_name_long' column of the combo_df that contains 
+  #              the geno_info_vec
+  # OUTPUTS #
+  # list containing 3 elements:
+  #  [[1]] numerical genotype with 0 = RR, 1 = RA, 2 = AA; 
+  #  [[2]] vector of total coverage/number of reads at that SV; and 
+  #  [[3]] matrix containing number of reads supporting each allele, with
+  #    rows = SV and columns = allele, first column = R, second column = A
+ ###########
+  tmp_geno_list <- strsplit(geno_info_vec, split = ':')
+  tmp_coverage <- as.numeric(unlist(lapply(tmp_geno_list, function(x) x[3])))
+  names(tmp_coverage) <- sv_names
+  tmp_num_genos <- unlist(lapply(tmp_geno_list, function(x)
+    sum(as.numeric(unlist(strsplit(x[1], split = '/'))))))
+  names(tmp_num_genos) <- sv_names
+  tmp_allele_reads <- matrix(
+    data = unlist(lapply(tmp_geno_list, function(x)
+      as.numeric(unlist(strsplit(x[2], split = ','))))),
+    byrow = T, ncol = 2,
+    dimnames = list(rownames = sv_names, colnames = c('n_REF', 'n_ALT')))
+  geno_info_list <- list()
+  geno_info_list[[1]] <- tmp_num_genos
+  geno_info_list[[2]] <- tmp_coverage
+  geno_info_list[[3]] <- tmp_allele_reads
+  return(geno_info_list)
+}
+
+# test_ind_geno_info <- make_ind_geno_info_list(test_combo_filt[,12], 
+#   sv_names = test_combo_filt$full_name_long)
+
+make_allsamp_geno_info_list <- function(combo_df){
+  # Make list containing genotype info for all samples in a combo_df based
+  #  on combined VCF, uses the make_ind_geno_info_list() function to generate
+  #  the genotype info for each sample
+  # INPUTS #
+  # combo_df = data.frame including info about indels from the combined VCF;
+  #              should be first generated using make_combo_indel_df() function 
+  #              or then filtered using the remove_missing_combo_SVs() function
+  # OUTPUTS #
+  # list with each element containing sub-list with genotype info for a sample.
+  # Genotype info for each sample contains 3 types of info: 
+  #  [[1]] numerical genotype with 0 = RR, 1 = RA, 2 = AA; 
+  #  [[2]] vector of total coverage/number of reads at that SV; and 
+  #  [[3]] matrix containing number of reads supporting each allele, with
+  #    rows = SV and columns = allele, first column = R, second column = A
+  #################
+  first_samp_ind <- which(colnames(combo_df) == 'FORMAT') + 1
+  last_samp_ind <- which(colnames(combo_df) == 'full_name') - 1
+  tot_info_list <- list()
+  for(s_ind in c(first_samp_ind:last_samp_ind)){
+    samp_name <- colnames(combo_df)[s_ind]
+    tmp_samp_geno_list <- make_ind_geno_info_list(combo_df[ , s_ind], 
+      sv_names = combo_df$full_name_long)
+    tot_info_list[[samp_name]] <- tmp_samp_geno_list
+  }
+  return(tot_info_list)
+}
+
+# test_full_geno_list <- make_allsamp_geno_info_list(test_combo_filt)
+
+call_ind_genotype <- function(ind_geno_list, min_sv_coverage = 10, 
+  het_ratio_cut = 0.15, min_minor_allele_count = 2, max_hom_ratio = 0.05){
+  # Function for calling genotypes at each SV using a list containg genotype
+  #  info for that sample
+  # INPUTS #
+  # ind_geno_list = list containing genotype info for a sample. Has 3 elements:
+  #                   [[1]] numerical genotype with 0 = RR, 1 = RA, 2 = AA; 
+  #                   [[2]] vector of total coverage/number of reads at SV; 
+  #                   [[3]] matrix containing number of reads supporting each 
+  #                     allele, with rows = SV and columns = allele, first 
+  #                     column = R, second column = A
+  # min_sv_coverage = the required minimum coverage/total read depth for an SV;
+  #                     if coverage is below <min_sv_coverage>, then call
+  #                     genotype as NA
+  # het_ratio_cut = the ratio of A/R or R/A above which the genotype is called
+  #                   as heterozygous (or "1")
+  #                   ex: if <het_ratio_cut> = 0.15, any SV's with a R/A ratio
+  #                   between 0.15 and 0.85 are called as heterozygous
+  # min_minor_allele_count = the required minimum number of reads for the
+  #                            allele with fewer reads in order for a genotype
+  #                            to be called heterozygous. If read ratio is
+  #                            above <het_ratio_cut> but below 
+  #                            <min_minor_allele_count>, then genotype is NA
+  # max_hom_ratio = the maximum read ratio for a homozygous genotype; if
+  #                   the read ratio is between <max_hom_ratio> and 
+  #                   <het_ratio_cut>, then genotype is NA 
+  # OUTPUTS #
+  # vector of numerical genotypes using cutoffs and parameters in the function;
+  #   0 = homozygous Ref; 1 = heterozygous; 2 = homozygous Alt
+  ##############
+  # Call initial genotypes based of R/A read ratio
+  tmp_ref_ratio <- apply(ind_geno_list[[3]], 1, function(x) x[1]/sum(x))
+  tmp_genos <- rep(NA, times = length(tmp_ref_ratio))
+  names(tmp_genos) <- names(ind_geno_list[[1]])
+  tmp_call_hom_alt <- which(tmp_ref_ratio < het_ratio_cut)
+  tmp_call_hom_ref <- which(tmp_ref_ratio > (1 - het_ratio_cut))
+  tmp_call_het <- setdiff(seq(length(tmp_genos)),
+    union(tmp_call_hom_ref, tmp_call_hom_alt))
+  tmp_genos[tmp_call_hom_ref] <- 0
+  tmp_genos[tmp_call_hom_alt] <- 2
+  tmp_genos[tmp_call_het] <- 1
+  # Filter genotypes based on cutoffs
+  tmp_too_low_inds <- which(ind_geno_list[[2]] < 10)
+  tmp_min_ratio <- apply(ind_geno_list[[3]], 1, function(x) min(x)/sum(x))
+  tmp_hom_inds <- setdiff(seq(length(tmp_genos)), tmp_call_het)
+  tmp_too_skewed_homs <- tmp_hom_inds[
+    which(tmp_min_ratio[tmp_hom_inds] > 0.05)]
+  tmp_low_min_allele <- apply(ind_geno_list[[3]], 1, min)
+  tmp_too_low_het <- intersect(which(tmp_low_min_allele <= 2), tmp_call_het)
+  tmp_na_inds <- union(tmp_too_low_inds, 
+    union(tmp_too_skewed_homs, tmp_too_low_het))
+  tmp_genos[tmp_na_inds] <- NA
+  return(tmp_genos)
+}
+
+# test_ind_num_geno <- call_ind_genotype(test_ind_geno_info, 
+#   min_sv_coverage = 10, het_ratio_cut = 0.15, min_minor_allele_count = 2, 
+#   max_hom_ratio = 0.05)
+
+call_allsamp_genotypes <- function(geno_info_list,  min_sv_coverage = 10,
+  het_ratio_cut = 0.15, min_minor_allele_count = 2, max_hom_ratio = 0.05){
+  # Function to call numeric genotype for all samples in geno_info_list using
+  #   the given parameters and cutoffs
+  # INPUTS #
+  # geno_info_list = list of genotype info for each sample generated by the
+  #                    make_allsamp_geno_info_list() function
+  # min_sv_coverage = the required minimum coverage/total read depth for an SV;
+  #                     if coverage is below <min_sv_coverage>, then call
+  #                     genotype as NA
+  # het_ratio_cut = the ratio of A/R or R/A above which the genotype is called
+  #                   as heterozygous (or "1")
+  #                   ex: if <het_ratio_cut> = 0.15, any SV's with a R/A ratio
+  #                   between 0.15 and 0.85 are called as heterozygous
+  # min_minor_allele_count = the required minimum number of reads for the
+  #                            allele with fewer reads in order for a genotype
+  #                            to be called heterozygous. If read ratio is
+  #                            above <het_ratio_cut> but below 
+  #                            <min_minor_allele_count>, then genotype is NA
+  # max_hom_ratio = the maximum read ratio for a homozygous genotype; if
+  #                   the read ratio is between <max_hom_ratio> and 
+  #                   <het_ratio_cut>, then genotype is NA 
+  # OUTPUTS #
+  # matrix containing filtered, numerical genotypes for each sample;
+  #   columns = samples, rows = SVs 
+  #####
+  allsamp_genos_list <- lapply(geno_info_list, call_ind_genotype, 
+    min_sv_coverage = min_sv_coverage, het_ratio_cut = het_ratio_cut, 
+    min_minor_allele_count = min_minor_allele_count, 
+    max_hom_ratio = max_hom_ratio)
+  samp_names <- names(geno_info_list)
+  allsamp_genos_mat <- matrix(data = unlist(allsamp_genos_list), 
+    ncol = length(geno_info_list), byrow = F)
+  colnames(allsamp_genos_mat) <- samp_names
+  rownames(allsamp_genos_mat) <- names(geno_info_list[[1]][[1]])
+  return(allsamp_genos_mat)
+}
+
+# test_allsamp_num_genos <- call_allsamp_genotypes(test_full_geno_list)
+
+filt_geno_mat <- function(geno_mat, max_nas = NULL, min_length = NULL, 
+  max_length = NULL, sv_type = NULL){
+  # Function to filter out SV's with more than <max_nas> NA's or SV's that are
+  #   longer or shorter than a size cutoff
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function
+  # max_nas = the maximum number of NAs allowed at an SV across all samples;
+  #             SV's with more NA's are removed
+  # min_length = the minimum length of an SV to be included; smaller SVs are
+  #                removed
+  # max_length = the maximum length of an SV to be included; larger SVs are
+  #                removed
+  # OUTPUTS #
+  # matrix of numerical genotypes
+  #######3
+  tmp_bad_inds <- c()
+  if(length(max_nas) > 0){
+    tmp_num_nas <- apply(geno_mat, 1, function(x) sum(is.na(x)))
+    tmp_bad_inds <- c(tmp_bad_inds, which(tmp_num_nas > max_nas))
+  }
+  sv_length_vec <- as.numeric(unlist(lapply(
+    strsplit(rownames(geno_mat), split = '_'), function(x) x[[length(x)]])))
+  sv_type_vec <- unlist(lapply(
+    strsplit(rownames(geno_mat), split = '_'), function(x) x[[length(x)-1]]))
+  if(length(min_length) > 0){
+    tmp_small_svs <- which(sv_length_vec < min_length)
+    tmp_bad_inds <- c(tmp_bad_inds, tmp_small_svs)
+  }
+  if(length(max_length) > 0){
+    tmp_big_svs <- which(sv_length_vec > max_length)
+    tmp_bad_inds <- c(tmp_bad_inds, tmp_big_svs)
+  }
+  if(length(sv_type) > 0){
+    tmp_svtype <- which(sv_type_vec != sv_type)
+    tmp_bad_inds <- c(tmp_bad_inds, tmp_svtype)
+  }
+  tmp_bad_inds <- sort(tmp_bad_inds)
+  geno_mat_filt <- geno_mat[-tmp_bad_inds, ]
+  return(geno_mat_filt)
+}
+
+# test_filt_allsamp_genos <- filt_geno_mat(test_allsamp_num_genos, max_nas = 0)
+# test_filt_genos_50 <- filt_geno_mat(test_allsamp_num_genos, max_nas = 0, 
+#   min_length = 50)
+
+tally_singleton_svs <- function(geno_mat){
+  # Function for tallying singleton SV genotypes by sample
+  #  note: written for SVs with only 2 genotype class, NOT 3 genotype classes
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function and
+  #              filtered with filt_geno_mat() function
+  # OUTPUT #
+  # list with three elements, each containing tables of the number of 
+  #   singleton genotypes for each genotype class (0, 1, 2) in each library
+  ######
+  n_geno_types <- apply(geno_mat, 1, function(x) length(table(x)))
+  two_geno_inds <- which(n_geno_types == 2)
+  #
+  test_n_0 <- apply(geno_mat[two_geno_inds, ], 1, function(x) sum(x == 0))
+  test_n_1 <- apply(geno_mat[two_geno_inds, ], 1, function(x) sum(x == 1))
+  test_n_2 <- apply(geno_mat[two_geno_inds, ], 1, function(x) sum(x == 2))
+  #
+  homRef_singleton_SVs <- two_geno_inds[which(test_n_0 == 1)]
+  homRef_sing_lib <- apply(geno_mat[homRef_singleton_SVs,], 1,
+    function(x) colnames(geno_mat)[which(x == 0)])
+  homAlt_singleton_SVs <- two_geno_inds[which(test_n_2 == 1)]
+  homAlt_sing_lib <- apply(geno_mat[homAlt_singleton_SVs,], 1,
+    function(x) colnames(geno_mat)[which(x == 2)])
+  het_singleton_SVs <- two_geno_inds[which(test_n_1 == 1)]
+  het_sing_lib <- apply(geno_mat[het_singleton_SVs,], 1,
+    function(x) colnames(geno_mat)[which(x == 1)])
+  #
+  sing_tab_list <- list()
+  sing_tab_list[['homRef_singletons']] <- table(homRef_sing_lib)
+  sing_tab_list[['het_singletons']] <- table(het_sing_lib)
+  sing_tab_list[['homAlt_singletons']] <- table(homAlt_sing_lib)
+  return(sing_tab_list)
+}
+
+get_branch_lib_names <- function(branch_name_vec, meta){
+  # Get the library names of a vector of branch names
+  # INPUTS #
+  # branch_name_vec = vector of branch names; should be numeric (ex: 13.1)
+  #                     instead of character because that's the form in the
+  #                     metadata
+  # meta = sample metadata dataframe
+  # OUTPUTS #
+  # vector of the library names in the same order as <branch_name_vec>
+  ########
+  meta_ind_vec <- c()
+  for(bn in branch_name_vec){
+    tmp_ind <- which(meta$branch_name == bn)
+    meta_ind_vec <- c(meta_ind_vec, tmp_ind)
+  }
+  lib_vec <- meta$lib_name[meta_ind_vec]
+  return(lib_vec)
+}
+
+get_lib_col_inds <- function(geno_mat, lib_name_vec){
+  # Get the column indices from geno_mat of the libraries in lib_name_vec
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function and
+  #              filtered with filt_geno_mat() function
+  # lib_name_vec = vector of the library names that want to find indices of
+  #                  in <geno_mat>; can be generated with 
+  #                  get_branch_lib_names() function
+  # OUTPUT #
+  # vector of the column indices in <geno_mat> that contain the data for the
+  #   libraries in <lib_name_vec>
+  ########3
+  col_ind_vec <- c()
+  mat_col_names <- colnames(geno_mat)
+  for(lnv in lib_name_vec){
+    tmp_ind <- which(mat_col_names == lnv)
+    col_ind_vec <- c(col_ind_vec, tmp_ind)
+  }
+  return(col_ind_vec)
+}
+
+get_samegeno_inds <- function(geno_mat, branch_name_vec, genotype, meta, 
+  n_miss = 0){
+  # get the indices of SVs that are all the same, given genotype in a set of
+  #   samples
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function and
+  #              filtered with filt_geno_mat() function
+  # branch_name_vec = vector of branch names; should be numeric (ex: 13.1)
+  #                     instead of character because that's the form in the
+  #                     metadata
+  # genotype = the numerical genotype that are looking for in the samples
+  # meta = sample metadata dataframe
+  # n_miss = the number of samples that can have a different genotype. Usually
+  #            want <n_miss> = 0, but if worried about miss-called genotypes,
+  #            then can try increasing <n_miss>
+  # OUTPUT #
+  # vector of indices of the SVs in geno_mat that are all the target genotype
+  #   in the target samples
+  #############
+  tmp_lib_names <- get_branch_lib_names(branch_name_vec, meta)
+  tmp_data_col_inds <- get_lib_col_inds(geno_mat, tmp_lib_names) 
+  #
+  test_geno_count <- apply(geno_mat[ , tmp_data_col_inds], 1, 
+    function(x) sum(x == genotype))
+  target_num <- length(branch_name_vec) - n_miss
+  invar_geno_inds <- which(test_geno_count == target_num)
+  return(invar_geno_inds)
+}
+
 
 
