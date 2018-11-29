@@ -11,161 +11,6 @@ combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
 combo_df <- make_combo_indel_df(combo_file_tot)
 
-######
-# need to filter the SV's a bit before we start the rest of the steps
-# 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
-#      of a sequencing error so should remove these first
-# 1) remove duplicated positions - I had a bit of a change of heart for these:
-#      New plan is to keep the largest SV of the duplicates (unless this
-#      ends up taking too much time, in which case I'll just remove everything)
-# 2) check positions that are very close to other SVs - may be worth removing
-#      close SVs if it seems like it's affected the genotype calling. Maybe
-#      this needs to be done before removing duplicated indices?
-#      Some related notes: found a couple instances of two deletions that are 
-#      within
-#      10bp of eachother, one is very long, the other is short. Turns out the
-#      sequence corresponding to the shorter deletion is found IN the sequence
-#      of the longer deletion, so the two are not independent. These should
-#      be removed to make our high-confidence set
-#      There is at least one other instance where very close indels could
-#      possibly be true - different types and het in each. Though again, it
-#      maybe it's just that the ref sequence is incorrect and either the
-#      insertion or deletion is a result of merging different haplotypes and
-#      only one of the SVs actually exists. Regardless, these could be removed
-
-
-# REF is one letter for INSertions; ALT is one letter for DELetions
-
-# For testing
-library(stringr)
-
-binuc_8mer_seqs <- gen_binuc_mer_seqs(mer_length = 8)
-
-mononuc_8mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 1)
-binuc_8mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 2)
-
-binuc_8mer_counts <- mer_counts(sv_geno_df = combo_df, 
-  nuc_seqs = binuc_8mer_seqs)
-mononuc_8mer_counts <- mer_counts(sv_geno_df = combo_df, nuc_seqs = mononuc_8mer_seqs)
-
-per_8mer_length <- per_mer_length(sv_geno_df = combo_df, 
-  nuc_seqs = binuc_8mer_seqs)
-
-per_50_8mer_inds <- per_mer_inds(sv_geno_df = combo_df, 
-  per_mer_list = per_8mer_length, per_cutoff = 0.5)
-# Done testing
-
-# indices to remove that are either 70% mononucleotide repeats, 50% the same
-#   binucleotide repeat, or 60% of two binucleotide repeats
-remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df, mer_length = 8, 
-  per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, per_bn_multi_cutoff = 0.6)
-
-combo_filt_1 <- combo_df[-remove_8mer_SV_inds, ]
-
-# NEXT: Find and adjust duplicated positions
-
-# remove duplicated positions - the smaller SVs are removed
-rm_dup_inds <- dup_inds_to_remove(sv_geno_df = combo_filt_1)
-
-combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
-
-# how many SVs overlap
-chr1_test <- combo_filt_2[which(combo_filt_2$CHROM == 'Chr01'),]
-
-test_remove_inds <- overlap_inds_to_remove(sv_geno_df = chr1_test, 
-  dist_cut = 10)
-
-test_remove_inds_2 <- overlap_inds_to_remove(sv_geno_df = combo_filt_2,    
-  dist_cut = 10)
-
-# GO FROM HERE
-
-test0 <- sapply(chr1_test$POS, function(x) abs(x - chr1_test$POS))
-test0_1 <- apply(test0, 1, function(x) which(x < 10))
-
-test_close_inds <- which(table(unlist(test0_1)) > 1)
-
-chr1_long <- combo_df[intersect(which(combo_df$CHROM == 'Chr01'), 
-  which(combo_df$sv_length > 49)),]
-
-test0_long <- sapply(chr1_long$POS, function(x) abs(x - chr1_long$POS))
-test0_1_long <- apply(test0_long, 1, function(x) which(x < 10))
-
-test_close_inds_long <- which(table(unlist(test0_1_long)) > 1)
-
-unlist(test0_1)[which(duplicated(test0_1))]
-
-test1 <- chr1_test$POS[1] - chr1_test$POS
-test1_1 <- abs(test1) - chr1_test$sv_length
-
-sv_dist_list <- list()
-for(i in seq(nrow(chr1_test))){
-  tmp_diffs <- chr1_test$POS[i] - chr1_test$POS
-  sv_dist_list[[i]] <- tmp_diffs
-}
-
-dist_vec <- c(10, 50, 100, 500, 1000)
-rel_dist_list <- list()
-for(i in seq(length(dist_vec))){
-  tmp_rel_dist <- lapply(sv_dist_list, 
-    function(x) length(which((abs(x) - dist_vec[i]) < 0)))
-  tmp_more_than_one <- sum(unlist(tmp_rel_dist) > 1)
-  rel_dist_list[[i]] <- tmp_more_than_one
-}
-
-rel_dist_vec <- unlist(rel_dist_list)
-names(rel_dist_vec) <- dist_vec
-rel_dist_vec/nrow(chr1_test) * 100
-#        10        50       100       500      1000  
-# 0.8100512  2.3309638  4.7115226 24.2519425 40.8166639
-# 0.81% SVs are within 10 bp of another SV - these should probably be
-#  consolidated/removed
-
-rel_dist_inds_list <- list()
-for(i in seq(length(dist_vec))){
-  tmp_rel_dist_inds <- lapply(sv_dist_list, 
-    function(x) which((abs(x) - dist_vec[i]) < 0))
-  rel_dist_inds_list[[i]] <- tmp_rel_dist_inds
-}
-
-which(unlist(lapply(rel_dist_inds_list[[1]], length)) > 1)[1]
-# 112
-
-chr1_test[c(112,113), ]
-
-# GO FROM HERE - what to do about these same-spot SVs
-
-test <- lapply(sv_dist_list, 
-    function(x) length(which((abs(x) - dist_vec[1]) < 0)))
-
-
-overlap_list <- list()
-for(i in seq(nrow(chr1_test))){
-  tmp_diffs <- abs(chr1_test$POS[i] - chr1_test$POS) - chr1_test$sv_length[i]
-  tmp_n_overlap <- length(which(tmp_diffs < 0))
-  overlap_list[[i]] <- tmp_n_overlap
-}
-
-sum(unlist(overlap_list) > 1)
-# 893
-
-which(unlist(overlap_list) >1)[1]
-# [1] 3
-
-overlap_list_2 <- list()
-for(i in seq(nrow(chr1_test))){
-  tmp_diffs <- abs(chr1_test$POS[i] - chr1_test$POS) - 10
-  tmp_n_overlap <- length(which(tmp_diffs < 0))
-  overlap_list_2[[i]] <- tmp_n_overlap
-}
-
-sum(unlist(overlap_list_2) > 1)
-[1] 152
-
-
-
-######
-
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 # samp_meta[,c('lib_name', 'branch_name')]
@@ -185,6 +30,36 @@ for(bs in bad_samps){
 }
 
 combo_df_filt <- combo_df[ , -sort(bad_vcf_cols)]
+
+######
+# Filter the SV's before we start the rest of the steps
+# 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
+#      of a sequencing error so should remove these first
+# 1) remove duplicated positions - keep the largest SV of the duplicats
+# 2) check positions that are very close to other SVs - remove the smaller of
+#      the SVs that are within a determined distance of another SV
+
+# REF is one letter for INSertions; ALT is one letter for DELetions
+
+# indices to remove that are either 70% mononucleotide repeats, 50% the same
+#   binucleotide repeat, or 60% of two binucleotide repeats
+remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df, mer_length = 8, 
+  per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, per_bn_multi_cutoff = 0.6)
+
+combo_filt_1 <- combo_df[-remove_8mer_SV_inds, ]
+
+# remove duplicated positions - the smaller SVs are removed
+rm_dup_inds <- dup_inds_to_remove(sv_geno_df = combo_filt_1)
+
+combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
+
+# remove SV's that are within 30bp of eachother - keep the larger SV
+too_close_inds_30 <- overlap_inds_to_remove(sv_geno_df = combo_filt_2,
+  dist_cut = 30) 
+
+
+
+
 
 ## find and remove any SVs with missing genotypes in any sample
 combo_df_2 <- remove_missing_combo_SVs(combo_df_filt)

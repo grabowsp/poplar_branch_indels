@@ -905,8 +905,6 @@ overlap_inds_to_remove <- function(sv_geno_df, dist_cut){
     }
   }
   return(unique(rm_ind_vec))
-  
-
 }
 
 

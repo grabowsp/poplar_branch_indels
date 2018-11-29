@@ -11,12 +11,36 @@ test_paxl_raw <- gen_indel_raw_df(test_paxl)
 combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
 
-test_combo <- make_combo_indel_df(combo_file_tot)
+test_combo_0 <- make_combo_indel_df(combo_file_tot)
 
-# include new filtering functions here
+########
+# filtering functions here
+## remove SVs with mono- and binucleotide repeats
+test_binuc_8mers <- gen_mer_seqs(mer_length = 8, n_bp = 2)
+test_binuc_8mer_counts <- mer_counts(sv_geno_df = test_combo_0, 
+  nuc_seqs = test_binuc_8mers)
+test_binuc_per_length <- per_mer_length(sv_geno_df = test_combo_0, 
+  nuc_seqs = test_binuc_8mers)
+test_50_8mer_inds <- per_mer_inds(sv_geno_df = test_combo_0, 
+  per_mer_list = test_binuc_per_length, per_cutoff = 0.5)
+test_kmer_remove_inds <- id_prob_SV_seqs(sv_geno_df = test_combo_0, 
+  mer_length = 8, per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, 
+  per_bn_multi_cutoff = 0.6)
 
+test_combo_0_f1 <- test_combo_0[-test_kmer_remove_inds, ]
 
+## remove duplicated positions
+test_dup_inds <- dup_inds_to_remove(sv_geno_df = test_combo_0_f1)
 
+test_combo_0_f2 <- test_combo_0_f1[-test_dup_inds,]
+
+## remove SV's that are within a certain distance of another SV (30bp in
+##   this case.
+test_too_close_inds <- overlap_inds_to_remove(sv_geno_df = test_combo_0_f2, 
+  dist_cut = 30)
+
+test_combo <- test_combo_0_f2[-test_too_close_inds, ]
+#####################
 
 test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = test_combo)
 
