@@ -13,6 +13,11 @@ combo_file_tot <- paste(data_dir, combo_file, sep = '')
 
 test_combo <- make_combo_indel_df(combo_file_tot)
 
+# include new filtering functions here
+
+
+
+
 test_paxl_2 <- gen_ind_uni_df(indiv_df = test_paxl, combo_df = test_combo)
 
 test_NO_paxl <- gen_nonoverlap_df(uni_ind_df = test_paxl_2, use_svsize = T)
@@ -62,4 +67,14 @@ test_b13_allHet <- get_samegeno_inds(geno_mat = test_filt_allsamp_genos,
 test_b13_allHomRef <- get_samegeno_inds(geno_mat = test_filt_allsamp_genos, 
   branch_name_vec = test_b13_labels, genotype = 0, meta = samp_meta)
 
+test_b13_topHet <- get_shared_unique_het_inds(
+  geno_mat = test_filt_allsamp_genos, branch_name_vec = test_b13_labels, 
+  test_names = test_b13_labels[1:2], meta = samp_meta)
 
+test_b13_topHom <- get_shared_unique_hom_inds(
+  geno_mat = test_filt_allsamp_genos, branch_name_vec = test_b13_labels,
+  test_names = test_b13_labels[1:2], meta = samp_meta)
+
+test_8mer_seqs <- gen_binuc_mer_seqs(mer_length = 8)
+
+test_8mer_count <- binuc_mer_counts(sv_geno_df = , binuc_seqs = test_8mer_seqs)

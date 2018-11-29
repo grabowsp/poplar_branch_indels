@@ -11,6 +11,161 @@ combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
 combo_df <- make_combo_indel_df(combo_file_tot)
 
+######
+# need to filter the SV's a bit before we start the rest of the steps
+# 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
+#      of a sequencing error so should remove these first
+# 1) remove duplicated positions - I had a bit of a change of heart for these:
+#      New plan is to keep the largest SV of the duplicates (unless this
+#      ends up taking too much time, in which case I'll just remove everything)
+# 2) check positions that are very close to other SVs - may be worth removing
+#      close SVs if it seems like it's affected the genotype calling. Maybe
+#      this needs to be done before removing duplicated indices?
+#      Some related notes: found a couple instances of two deletions that are 
+#      within
+#      10bp of eachother, one is very long, the other is short. Turns out the
+#      sequence corresponding to the shorter deletion is found IN the sequence
+#      of the longer deletion, so the two are not independent. These should
+#      be removed to make our high-confidence set
+#      There is at least one other instance where very close indels could
+#      possibly be true - different types and het in each. Though again, it
+#      maybe it's just that the ref sequence is incorrect and either the
+#      insertion or deletion is a result of merging different haplotypes and
+#      only one of the SVs actually exists. Regardless, these could be removed
+
+
+# REF is one letter for INSertions; ALT is one letter for DELetions
+
+# For testing
+library(stringr)
+
+binuc_8mer_seqs <- gen_binuc_mer_seqs(mer_length = 8)
+
+mononuc_8mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 1)
+binuc_8mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 2)
+
+binuc_8mer_counts <- mer_counts(sv_geno_df = combo_df, 
+  nuc_seqs = binuc_8mer_seqs)
+mononuc_8mer_counts <- mer_counts(sv_geno_df = combo_df, nuc_seqs = mononuc_8mer_seqs)
+
+per_8mer_length <- per_mer_length(sv_geno_df = combo_df, 
+  nuc_seqs = binuc_8mer_seqs)
+
+per_50_8mer_inds <- per_mer_inds(sv_geno_df = combo_df, 
+  per_mer_list = per_8mer_length, per_cutoff = 0.5)
+# Done testing
+
+# indices to remove that are either 70% mononucleotide repeats, 50% the same
+#   binucleotide repeat, or 60% of two binucleotide repeats
+remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df, mer_length = 8, 
+  per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, per_bn_multi_cutoff = 0.6)
+
+combo_filt_1 <- combo_df[-remove_8mer_SV_inds, ]
+
+# NEXT: Find and adjust duplicated positions
+
+# remove duplicated positions - the smaller SVs are removed
+rm_dup_inds <- dup_inds_to_remove(sv_geno_df = combo_filt_1)
+
+combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
+
+# how many SVs overlap
+chr1_test <- combo_filt_2[which(combo_filt_2$CHROM == 'Chr01'),]
+
+test_remove_inds <- overlap_inds_to_remove(sv_geno_df = chr1_test, 
+  dist_cut = 10)
+
+test_remove_inds_2 <- overlap_inds_to_remove(sv_geno_df = combo_filt_2,    
+  dist_cut = 10)
+
+# GO FROM HERE
+
+test0 <- sapply(chr1_test$POS, function(x) abs(x - chr1_test$POS))
+test0_1 <- apply(test0, 1, function(x) which(x < 10))
+
+test_close_inds <- which(table(unlist(test0_1)) > 1)
+
+chr1_long <- combo_df[intersect(which(combo_df$CHROM == 'Chr01'), 
+  which(combo_df$sv_length > 49)),]
+
+test0_long <- sapply(chr1_long$POS, function(x) abs(x - chr1_long$POS))
+test0_1_long <- apply(test0_long, 1, function(x) which(x < 10))
+
+test_close_inds_long <- which(table(unlist(test0_1_long)) > 1)
+
+unlist(test0_1)[which(duplicated(test0_1))]
+
+test1 <- chr1_test$POS[1] - chr1_test$POS
+test1_1 <- abs(test1) - chr1_test$sv_length
+
+sv_dist_list <- list()
+for(i in seq(nrow(chr1_test))){
+  tmp_diffs <- chr1_test$POS[i] - chr1_test$POS
+  sv_dist_list[[i]] <- tmp_diffs
+}
+
+dist_vec <- c(10, 50, 100, 500, 1000)
+rel_dist_list <- list()
+for(i in seq(length(dist_vec))){
+  tmp_rel_dist <- lapply(sv_dist_list, 
+    function(x) length(which((abs(x) - dist_vec[i]) < 0)))
+  tmp_more_than_one <- sum(unlist(tmp_rel_dist) > 1)
+  rel_dist_list[[i]] <- tmp_more_than_one
+}
+
+rel_dist_vec <- unlist(rel_dist_list)
+names(rel_dist_vec) <- dist_vec
+rel_dist_vec/nrow(chr1_test) * 100
+#        10        50       100       500      1000  
+# 0.8100512  2.3309638  4.7115226 24.2519425 40.8166639
+# 0.81% SVs are within 10 bp of another SV - these should probably be
+#  consolidated/removed
+
+rel_dist_inds_list <- list()
+for(i in seq(length(dist_vec))){
+  tmp_rel_dist_inds <- lapply(sv_dist_list, 
+    function(x) which((abs(x) - dist_vec[i]) < 0))
+  rel_dist_inds_list[[i]] <- tmp_rel_dist_inds
+}
+
+which(unlist(lapply(rel_dist_inds_list[[1]], length)) > 1)[1]
+# 112
+
+chr1_test[c(112,113), ]
+
+# GO FROM HERE - what to do about these same-spot SVs
+
+test <- lapply(sv_dist_list, 
+    function(x) length(which((abs(x) - dist_vec[1]) < 0)))
+
+
+overlap_list <- list()
+for(i in seq(nrow(chr1_test))){
+  tmp_diffs <- abs(chr1_test$POS[i] - chr1_test$POS) - chr1_test$sv_length[i]
+  tmp_n_overlap <- length(which(tmp_diffs < 0))
+  overlap_list[[i]] <- tmp_n_overlap
+}
+
+sum(unlist(overlap_list) > 1)
+# 893
+
+which(unlist(overlap_list) >1)[1]
+# [1] 3
+
+overlap_list_2 <- list()
+for(i in seq(nrow(chr1_test))){
+  tmp_diffs <- abs(chr1_test$POS[i] - chr1_test$POS) - 10
+  tmp_n_overlap <- length(which(tmp_diffs < 0))
+  overlap_list_2[[i]] <- tmp_n_overlap
+}
+
+sum(unlist(overlap_list_2) > 1)
+[1] 152
+
+
+
+######
+
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 # samp_meta[,c('lib_name', 'branch_name')]
@@ -150,6 +305,7 @@ tally_singleton_svs(genos_noNAs_1000)
 # PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 
 #    3    6    3    2    4    8   14    3
 
+# Look at DELetions vs INSertions
 del_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0,
   sv_type = 'DEL')
 tally_singleton_svs(del_genos_noNAs)
@@ -182,8 +338,10 @@ table(apply(ins_genos_noNAs[which(ins_noNAs_numHets == 1), ], 1, sum))
 # 576   1   1   1
 # most of the singleton het INSertions are new instance of that SV 
 
+
 # Assemble into a table
-filt_geno_list_for_singletons <- list(combo_filt_genos_noNAs, genos_noNAs_50, genos_noNAs_100, genos_noNAs_1000, del_genos_noNAs, ins_genos_noNAs)
+filt_geno_list_for_singletons <- list(combo_filt_genos_noNAs, genos_noNAs_50, 
+  genos_noNAs_100, genos_noNAs_1000, del_genos_noNAs, ins_genos_noNAs)
 
 singleton_res_df <- data.frame(lib = colnames(combo_filtered_genotypes), 
   stringsAsFactors = F)
@@ -222,6 +380,7 @@ sing_tab_out <- paste(data_dir, 'analysis_results/singleton_SV_tables.tab',
 write.table(singleton_res_df, file = sing_tab_out, quote = F, sep = '\t', 
   row.names = F, col.names = T)
 
+
 # Some notes:
 # PBAW, 13.2, always has more singleton homozygous Ref SVs, meaning the 
 #  Alt allele is missing ONLY from that sample; PBAW has lower seq depth, but
@@ -245,15 +404,21 @@ b13_all_hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
   branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta)
 b13_all_homRef <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
   branch_name_vec = branch_13_lab, genotype = 0, meta = samp_meta)
+b13_all_homAlt <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_13_lab, genotype = 2, meta = samp_meta)
 
 b14_all_hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
   branch_name_vec = branch_14_lab, genotype = 1, meta = samp_meta)
 b14_all_homRef <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
   branch_name_vec = branch_14_lab, genotype = 0, meta = samp_meta)
+b14_all_homAlt <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = branch_14_lab, genotype = 2, meta = samp_meta)
 
 # Start with clone 14 specific SVs
-b14_specific_hets <- intersect(b14_all_hets, b13_all_homRef)
-length(b14_specific_hets)
+b14_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs, 
+  branch_name_vec = c(branch_13_lab, branch_14_lab), 
+  test_names = branch_14_lab, meta = samp_meta)
 # [1] 32
 # 32 het SVs found ONLY in clone 14
 
@@ -262,16 +427,15 @@ b13_1_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
   branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 3)
 length(intersect(b14_all_hets, b13_1_het))
 # [1] 274
+# So it looks like there are some b13 branches that are more similar to b14?
 
-b13_2_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
-  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 2)
-length(intersect(b14_all_hets, b13_2_het))
-# 275
-
-b13_3_het <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
-  branch_name_vec = branch_13_lab, genotype = 1, meta = samp_meta, n_miss = 1)
-length(intersect(b14_all_hets, b13_3_het))
-# 460
+b14_135_spec_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab),
+  test_names = c(branch_14_lab, branch_13_lab[4]), meta = samp_meta)
+length(b14_135_spec_hets)
+# [1] 245
+# most SVs that are in clone 14 and one clone 13 branch are in 13.5
 
 test_4het_allsamps <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
   branch_name_vec = c(branch_13_lab, branch_14_lab), genotype = 1, meta = samp_meta, n_miss = 4)
@@ -279,27 +443,18 @@ test_4het_allsamps <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
 # 8 choose 4 is 70, 659/70 = 9.4; so should be only 9 or 10 for a set of 
 # 4 samples if totally random; instead have 32, so that's promising...
 
-comb_4samp_combos <- combn(c(1:8), m = 4)
+# check all the possible combinations of 4 samples to see how many shared,
+#   unique het SVs are in each combination
+n_het_in_4_samps <- test_shared_unique_het_combos(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), n_test = 4, 
+  meta = samp_meta)
 
-n_diff_vec <- c()
-for(cc in seq(ncol(comb_4samp_combos))){
-  test_branches <- c(branch_13_lab, branch_14_lab)[comb_4samp_combos[ ,cc]]
-  alt_branches <- setdiff(c(branch_13_lab, branch_14_lab), test_branches)
-  test_4hets <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs, 
-    branch_name_vec = test_branches, genotype = 1, meta = samp_meta, 
-    n_miss = 0)
-  alt_4hom <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
-    branch_name_vec = alt_branches, genotype = 0, meta = samp_meta,
-    n_miss = 0)
-  tmp_n_fixed_diff <- length(intersect(test_4hets, alt_4hom))
-  n_diff_vec <- c(n_diff_vec, tmp_n_fixed_diff)
-}
-
-n_diff_vec
+n_het_in_4_samps[[1]]
 #  [1]   2   0   3   0  38   1   2   0   3   6   1   0   0   0   0   1   1   1   9
 # [20]   0   1   0   0   3   0   2   0   0   1   0   0  12   0   0   0   0   0   0
-# [39]   0   0   0   0   0   0   0   1   0   0   1   2   0  25   1   0   0   2   0
-# [58]   0   1   2   2  12   9   1   0 449   7   8   3  32
+# [39]   0   0   0   0   0   0   0   1   1   0   1   2   0  25   1   0   0   2   0
+# [58]   0   1   2   3  12   9   1   0 449   7   8   3  32
 
 # SURPRISE!!!! It turns out, combination 66, which is 13.5, 14.1, 14.2, and 
 #   14.3 has many more unique SVs than either clone-specific combo. Second
@@ -307,15 +462,177 @@ n_diff_vec
 #   is clone 14 branches (combination 70) and clone 13 branches are below many
 #   other combinations. WHY?????
 
-b13_3_homAlt <- get_samegeno_inds(geno_mat = combo_filt_genos_noNAs,
-  branch_name_vec = branch_13_lab, genotype = 2, meta = samp_meta, n_miss = 1)
+table(n_het_in_4_samps[[1]])
+#  0   1   2   3   6   7   8   9  12  25  32  38 449 
+# 34  14   6   5   1   1   1   2   2   1   1   1   1 
 
+b13_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab),
+  test_names = branch_13_lab, meta = samp_meta)
 
-
-b13_specific_hets <- intersect(b13_all_hets, b14_all_homRef)
 length(b13_specific_hets)
 # [1] 2
 # 2 heterozygous SVs found ONLY in clone 13
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_4_samps[[2]][, which(n_het_in_4_samps[[1]] == 449)]]
+# [1] 13.5 14.2 14.3 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_4_samps[[2]][, which(n_het_in_4_samps[[1]] == 38)]]
+# [1] 13.1 13.2 13.3 14.5
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_4_samps[[2]][, which(n_het_in_4_samps[[1]] == 25)]]
+# [1] 13.2 14.2 14.3 14.4
+
+####
+# Look at combinations of 2 branches - the top two brances of each clone
+#   should have the hightest number of shared, unique SVs
+
+b13_top2_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab),
+  test_names = branch_13_lab[1:2], meta = samp_meta)
+
+length(b13_top2_specific_hets)
+# [1] 29
+
+b14_top2_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab),
+  test_names = branch_14_lab[1:2], meta = samp_meta)
+length(b14_top2_specific_hets)
+# [1] 289
+
+n_het_in_2_samps <- test_shared_unique_het_combos(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), n_test = 2,
+  meta = samp_meta)
+
+table(n_het_in_2_samps[[1]])
+#   0   1   2   3   4  13  15  17  18  19  22  29 289 
+#   7   6   3   1   1   3   1   1   1   1   1   1   1
+# 14.2 and 14.3 have the most by far; 13.1 and 13.2 have second most
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 22)]]
+# [1] 13.5 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 19)]]
+# [1] 13.3 14.5
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 18)]]
+# [1] 13.5 14.3
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 17)]]
+# [1] 14.2 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 15)]]
+# [1] 14.3 14.5
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_2_samps[[2]][, which(n_het_in_2_samps[[1]] == 13)]]
+# [1] 13.2 14.3; 13.5 14.5; 14.3 14.4
+
+###
+# Look at top 3 branches
+
+b13_top3_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), 
+  test_names = branch_13_lab[1:3], meta = samp_meta)
+length(b13_top3_specific_hets)
+# [1] 19
+
+b14_top3_specific_hets <- get_shared_unique_het_inds(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab),
+  test_names = branch_14_lab[1:3], meta = samp_meta)
+length(b14_top3_specific_hets)
+# [1] 506
+
+n_het_in_3_samps <- test_shared_unique_het_combos(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), n_test = 3,
+  meta = samp_meta)
+
+table(n_het_in_3_samps[[1]])
+#   0   1   2   3   4   5   6   7   9  10  19  22  23 506 
+#  24  12   3   2   1   1   5   1   1   2   1   1   1   1
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_3_samps[[2]][, which(n_het_in_3_samps[[1]] == 23)]]
+# [1] 13.5 14.2 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_3_samps[[2]][, which(n_het_in_3_samps[[1]] == 22)]]
+# [1] 13.5 14.2 14.3
+
+# Top numbers other than 506 are combinations of clone 14 branches with 
+#  branch 13.5
+
+####
+# look at SVs het in 5 samples, homozygous in 3 samples
+# note: the function isn't exactly suited for testing shared, unique homozygous
+#  genotypes, should make new function if want to pursue this farther
+
+n_het_in_5_samps <- test_shared_unique_het_combos(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), n_test = 5,
+  meta = samp_meta)
+
+table(n_het_in_5_samps[[1]])
+#   0   1   2   3   5   8   9  14  16  24  27  43 245 
+#  24  10   7   3   1   2   1   2   1   2   1   1   1
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_5_samps[[2]][, which(n_het_in_5_samps[[1]] == 245)]]
+# [1] 13.5 14.2 14.3 14.4 14.5
+# 13.1, 13.2, and 13.3 have 245 unique, homozygous SVs
+# would make sense if first split is between 13.5 and 13.3 OR if loss of
+#  heterozygosity is more common than I assume
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_5_samps[[2]][, which(n_het_in_5_samps[[1]] == 43)]]
+# [1] 13.2 13.5 14.2 14.3 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_5_samps[[2]][, which(n_het_in_5_samps[[1]] == 27)]]
+# [1] 13.1 13.2 14.2 14.3 14.4
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_5_samps[[2]][, which(n_het_in_5_samps[[1]] == 24)]]
+# 13.1 13.2 13.3 13.5 14.5;   13.3 14.2 14.3 14.4 14.5
+
+####
+# Look at SVs in 6 samples
+n_het_in_6_samps <- test_shared_unique_het_combos(
+  geno_mat = combo_filt_genos_noNAs,
+  branch_name_vec = c(branch_13_lab, branch_14_lab), n_test = 6,
+  meta = samp_meta)
+
+table(n_het_in_6_samps[[1]])
+#   0   1   2   3   4   5   6  10  11  16  18  20  29  35  48 203 
+#   2   3   1   6   2   3   1   2   1   1   1   1   1   1   1   1
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_6_samps[[2]][, which(n_het_in_6_samps[[1]] == 203)]]
+# [1] 13.3 13.5 14.2 14.3 14.4 14.5
+# 13.1 and 13.2 have 203 shared, unique homozygous SVs
+# is this related to how 13.2 has an excess of unique homozygous SVs?
+
+c(branch_13_lab, branch_14_lab)[
+  n_het_in_6_samps[[2]][, which(n_het_in_6_samps[[1]] == 48)]]
+# [1] 13.1 13.2 13.5 14.2 14.3 14.4
+# shared homozygous SVs in 13.3 and 14.5 - doesn't really make sense
+
+
 
 
 # What happens if we allow for miss-called 0's (actually 1's)

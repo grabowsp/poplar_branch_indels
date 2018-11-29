@@ -86,7 +86,7 @@ make_combo_indel_df <- function(combo_file, n_head_lines = 100){
 # data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
 # combo_file <- 'ref.ALLData.vcf'
 # combo_file_tot <- paste(data_dir, combo_file, sep = '')
-# test_combo <- make_combo_indel_df(combo_file_tot) 
+# test_combo <- make_combo_indel_df(combo_file_tot)  
 
 gen_ind_uni_df <- function(indiv_df, combo_df){
   # generate data.frame of unique/not-shared positions in the individual vs 
@@ -588,6 +588,325 @@ get_samegeno_inds <- function(geno_mat, branch_name_vec, genotype, meta,
   target_num <- length(branch_name_vec) - n_miss
   invar_geno_inds <- which(test_geno_count == target_num)
   return(invar_geno_inds)
+}
+
+get_shared_unique_het_inds <- function(geno_mat, branch_name_vec, test_names, 
+  meta){
+  # Get the indices of SVs that are shared between but unique to a set of
+  #  samples - they are heterozygous in <test_names> and homozygous in all
+  #  the rest
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function and
+  #              filtered with filt_geno_mat() function
+  # branch_name_vec = vector of branch names; should be numeric (ex: 13.1)
+  #                     instead of character because that's the form in the
+  #                     metadata
+  # test_names = vector of names in <branch_name_vec> that are looking for
+  #                shared, unique SVs in
+  # genotype = the numerical genotype that are looking for in the samples
+  # meta = sample metadata dataframe
+  # OUTPUT #
+  # vector of indices of the SVs in geno_mat that are shared, unique
+  #   heterozygous SVs in the <test_names> samples
+  ########
+  alt_names <- setdiff(branch_name_vec, test_names)
+  tot_het_inds <- get_samegeno_inds(geno_mat = geno_mat, 
+    branch_name_vec = test_names, genotype = 1, meta = meta, 
+    n_miss = 0)
+  other_homRef <- get_samegeno_inds(geno_mat = geno_mat, 
+    branch_name_vec = alt_names, genotype = 0, meta = meta, n_miss = 0)
+  other_homAlt <- get_samegeno_inds(geno_mat = geno_mat, 
+    branch_name_vec = alt_names, genotype = 2, meta = meta, n_miss = 0)
+  #
+  spec_hets <- intersect(tot_het_inds, union(other_homRef, other_homAlt))
+  return(spec_hets)
+}
+
+get_shared_unique_hom_inds <- function(geno_mat, branch_name_vec, test_names,
+  meta){
+  # Get the indices of SVs that are homozygous ONLY in <test_names> and
+  #  heterozygous in the rest of the samples
+  # INPUTS #
+  # geno_mat = matrix of numeric genotypes; cols = samples, rows = SVs; best
+  #              if generated using call_allsamp_genotypes() function and
+  #              filtered with filt_geno_mat() function
+  # branch_name_vec = vector of branch names; should be numeric (ex: 13.1)
+  #                     instead of character because that's the form in the
+  #                     metadata
+  # test_names = vector of names in <branch_name_vec> that are looking for
+  #                shared, unique homozygous SV genotypes in
+  # genotype = the numerical genotype that are looking for in the samples
+  # meta = sample metadata dataframe
+  # OUTPUT #
+  # vector of indices of the SVs in geno_mat that are shared, unique
+  #   heterozygous SVs in the <test_names> samples
+ #######
+  alt_names <- setdiff(branch_name_vec, test_names)
+  test_homRef <- get_samegeno_inds(geno_mat = geno_mat,
+    branch_name_vec = test_names, genotype = 0, meta = meta, 
+    n_miss = 0)
+  test_homAlt <- get_samegeno_inds(geno_mat = geno_mat,
+    branch_name_vec = test_names, genotype = 2, meta = meta,
+    n_miss = 0)
+  other_het <- get_samegeno_inds(geno_mat = geno_mat,
+    branch_name_vec = alt_names, genotype = 1, meta = meta, n_miss = 0)
+  #
+  spec_homs <- intersect(union(test_homRef, test_homAlt), other_het)
+  return(spec_homs)
+}
+
+test_shared_unique_het_combos <- function(geno_mat, branch_name_vec, n_test, 
+  meta){
+  # Find the number of shared, unique heterozygous SVs in all the possible
+  #  combination of <n_test> samples
+  ##############
+  test_combos <- combn(seq(length(branch_name_vec)), m = n_test)
+  n_diff_vec <- c()
+  for(cc in seq(ncol(test_combos))){
+    test_branches <- branch_name_vec[test_combos[ ,cc]]
+    alt_branches <- setdiff(branch_name_vec, test_branches)
+    test_hets <- get_samegeno_inds(geno_mat = geno_mat,
+      branch_name_vec = test_branches, genotype = 1, meta = meta,
+      n_miss = 0)
+    alt_homRef <- get_samegeno_inds(geno_mat = geno_mat,
+      branch_name_vec = alt_branches, genotype = 0, meta = meta,
+      n_miss = 0)
+    alt_homAlt <- get_samegeno_inds(geno_mat = geno_mat,
+    branch_name_vec = alt_branches, genotype = 2, meta = meta,
+      n_miss = 0)
+  tmp_n_fixed_diff <- length(intersect(test_hets, 
+    union(alt_homRef, alt_homAlt)))
+  n_diff_vec <- c(n_diff_vec, tmp_n_fixed_diff)
+  }
+  combo_res_list <- list()
+  combo_res_list[[1]] <- n_diff_vec
+  combo_res_list[[2]] <- test_combos
+  return(combo_res_list)
+}
+
+gen_mer_seqs <- function(mer_length, n_bp){
+  # Generate sequences of stated length of repeated k_mers. For instance, if
+  #   n_bp = 2, then generate binucleotide repeats of length <mer_length>
+  #   Works for n_bp = 1 or n_bp = 2.
+  # INPUTS #
+  # mer_length = the total length of the binucleotide repeat sequences that
+  #                are interested in
+  # n_bp = the number of different nucleotides to have in the repeated
+  #          sequence
+  # OUTPUTS #
+  # vector of repeated Kmer sequences
+  ####
+  nuc_combos <- combn(c('G', 'C', 'T', 'A'), m = n_bp, simplify = T)
+  nuc_seqs <- apply(nuc_combos, 2, paste, sep = '', collapse = '')
+  n_repeats <- mer_length / 2
+  nuc_mer_seqs <- sapply(nuc_seqs, function(x)
+    paste(rep(x, times = n_repeats), sep = '', collapse = ''))
+  return(nuc_mer_seqs)
+}
+
+mer_counts <- function(sv_geno_df, nuc_seqs){
+  # Count the number of repeat-containing (mono- or bi-nucleotide) kmers in 
+  #   each SV sequence
+  #   To be used for identifying suspect/bad/error-prone SVs
+  # INPUTS # 
+  # sv_geno_df = data.frame from VCF that includes the columns <ALT> which
+  #                contains the sequence for tha ALTernate allele; <REF> which
+  #                contains the sequence for the REFerence allele; and <type>
+  #                which indicates whether the SV is INSertion or DELetion.
+  #                The SV sequence for 'INS' is in the 'ALT' column, sequence
+  #                for 'DEL' is in the 'REF' column
+  # nuc_seqs = vector of repeat-containing sequences that want to count the
+  #                instances of in the SV sequences
+  # OUTPUT #
+  # List; each element contains info for a sequence in <nuc_seqs>;
+  #  sub-elements contain the count of that sequence in each 'INS' or 'DEL'
+  #########
+  library(stringr)
+  nuc_counts <- list()
+  for(bn in nuc_seqs){
+    tmp_ins_count <- sapply(sv_geno_df$ALT[which(sv_geno_df$type == 'INS')],
+      function(x) str_count(x, bn))
+    tmp_del_count <- sapply(sv_geno_df$REF[which(sv_geno_df$type == 'DEL')],
+      function(x) str_count(x, bn))
+    nuc_counts[[bn]][['INS']] <- tmp_ins_count
+    nuc_counts[[bn]][['DEL']] <- tmp_del_count
+  }
+  return(nuc_counts)
+}
+
+per_mer_length <- function(sv_geno_df, nuc_seqs){
+  # Calculate the percentage of SV sequence that is comprised of mono- or 
+  #   bi-nucleotide repeat sequences
+  # INPUTS # 
+  # sv_geno_df = data.frame from VCF that includes the columns <ALT> which
+  #                contains the sequence for tha ALTernate allele; <REF> which
+  #                contains the sequence for the REFerence allele; <type>
+  #                which indicates whether the SV is INSertion or DELetion; and
+  #                <sv_lenght> which contains the length of the SV.
+  #                The SV sequence for 'INS' is in the 'ALT' column, sequence
+  #                for 'DEL' is in the 'REF' column
+  # nuc_seqs = vector of mono- or bi-nucleotide sequences that want to count 
+  #                the instances of in the SV sequences; can be generated with
+  #                gen_mer_seqs() function
+  # OUTPUT #
+  # List; each element contains info for a sequence in <nuc_seqs>;
+  #   sub-elements contain the percentage of INS or DEL sequence that is
+  #   comprised of the repeat sequence
+  #######
+  library(stringr)
+  nuc_counts <- list()
+  tmp_tot_ins_length <- sv_geno_df$sv_length[which(sv_geno_df$type == 'INS')]
+  tmp_tot_del_length <- sv_geno_df$sv_length[which(sv_geno_df$type == 'DEL')]
+  for(bn in nuc_seqs){
+    seq_length <- nchar(bn) 
+    tmp_ins_count <- sapply(sv_geno_df$ALT[which(sv_geno_df$type == 'INS')],
+      function(x) str_count(x, bn))
+    tmp_ins_bn_length <- tmp_ins_count * seq_length
+    tmp_ins_per_bn <- tmp_ins_bn_length / tmp_tot_ins_length
+    # 
+    tmp_del_count <- sapply(sv_geno_df$REF[which(sv_geno_df$type == 'DEL')],
+      function(x) str_count(x, bn))
+    tmp_del_bn_length <- tmp_del_count * seq_length
+    tmp_del_per_bn <- tmp_del_bn_length / tmp_tot_del_length
+    #
+    nuc_counts[[bn]][['INS']] <- tmp_ins_per_bn
+    nuc_counts[[bn]][['DEL']] <- tmp_del_per_bn
+  }
+  return(nuc_counts)
+}
+
+per_mer_inds <- function(sv_geno_df, per_mer_list, per_cutoff){
+  # Get the indices of SVs that consist of a percentage of mono- or 
+  #   bi-nucleotide repeat
+  #   sequences that are above <per_cutoff>
+  # INPUTS #
+  # sv_geno_df = data.frame from VCF that includes the column <sv_lenght> 
+  #                which contains the length of the SV. Preferable same 
+  #                genotype dataframe used to generate <per_mer_list>
+  # per_mer_list = list containing, for multile repeat sequences,
+  #                  the percentage of each SV sequence consisting of each
+  #                  repeated sequence. Should be generated using the 
+  #                  per_mer_length() function
+  # per_cutoff = the percentage cutoff. If a percentage of an SV's sequence 
+  #                that is a repeat sequence, then it's index
+  #                will be retained
+  # OUTPUTS #
+  # List; each element contains info for a repeat sequence;
+  #   sub-elements contain the indices of INS or DEL sequences that contain
+  #   a specific repeat sequence above the per_cutoff threshold
+  #######
+  per_inds <- list()
+  tot_ins_inds <- which(sv_geno_df$type == 'INS')
+  tot_del_inds <- which(sv_geno_df$type == 'DEL')
+  for(bnp in names(per_mer_list)){
+    tmp_ins_inds <- tot_ins_inds[
+                      which(per_mer_list[[bnp]][['INS']] > per_cutoff)]
+    tmp_del_inds <- tot_del_inds[
+                      which(per_mer_list[[bnp]][['DEL']] > per_cutoff)]
+    per_inds[[bnp]][['INS']] <- tmp_ins_inds
+    per_inds[[bnp]][['DEL']] <- tmp_del_inds
+  }
+  return(per_inds)
+}
+
+id_prob_SV_seqs <- function(sv_geno_df, mer_length = 8, per_mn_cutoff = 0.7, 
+  per_bn_pure_cutoff = 0.5, per_bn_multi_cutoff = 0.6){
+  # Identify SV's that have problematic sequences in terms of their content
+  #  of binucleotide repeat sequences. These sequences are associated with
+  #  sequenceing errors and are highly error prone.
+  # sv_geno_df = data.frame from VCF that includes the columns <ALT> which
+  #                contains the sequence for tha ALTernate allele; <REF> which
+  #                contains the sequence for the REFerence allele; <type>
+  #                which indicates whether the SV is INSertion or DELetion; and
+  #                <sv_lenght> which contains the length of the SV.
+  #                The SV sequence for 'INS' is in the 'ALT' column, sequence
+  #                for 'DEL' is in the 'REF' column
+  # mer_length = the total length of the binucleotide repeat sequences that
+  #                are interested in
+  # per_mn_cutoff = the percentage cutoff for a mononucleotide repeat. 
+  #                     If the percentage of an SV's sequence that is the 
+  #                     repeat sequence, then it's index will be retained
+  # per_bn_pure_cutoff = the percentage cutoff for a single binucleotide 
+  #                     repeat. If the percentage of an SV's sequence that is 
+  #                     a single type of  binucleotide repeat sequence, 
+  #                     then it's index will be retained
+  # per_bn_multi_cutoff = the percentage cutoff for two type of binucleotide
+  #                      repeat. If two binucleotide repeate sequences make up
+  #                      a percentage of an SV sequence above this cutoff, then
+  #                      the index is retained for that SV
+  # OUTPUTS #
+  # Vector of SV in sv_geno_df that are problematic
+  #####
+  mn_mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 1)
+  bn_mer_seqs <- gen_mer_seqs(mer_length = 8, n_bp = 2)
+  #
+  mn_per_mer <- per_mer_length(sv_geno_df = sv_geno_df, nuc_seqs = mn_mer_seqs)
+  mn_per_inds <- unlist(per_mer_inds(sv_geno_df = sv_geno_df, 
+    per_mer_list = mn_per_mer, per_cutoff = per_mn_cutoff))
+  #
+  bn_per_mer <- per_mer_length(sv_geno_df = sv_geno_df, nuc_seqs = bn_mer_seqs)
+  bn_per_pure_inds <- unlist(per_mer_inds(sv_geno_df = sv_geno_df, 
+    per_mer_list = bn_per_mer, per_cutoff = per_bn_pure_cutoff))
+  #
+  mult_bn_cut <- per_bn_multi_cutoff / 2
+  tmp_multi_inds <- unlist(per_mer_inds(sv_geno_df = sv_geno_df,
+    per_mer_list = bn_per_mer, per_cutoff = mult_bn_cut))
+  tmp_mult_table <- table(unlist(tmp_multi_inds))
+  bn_per_multi_inds <- as.numeric(names(tmp_mult_table))[
+                         which(tmp_mult_table > 1)]
+  #
+  tot_rem_inds <- sort(union(mn_per_inds, 
+    union(bn_per_pure_inds, bn_per_multi_inds)))
+  return(tot_rem_inds)
+}
+
+dup_inds_to_remove <- function(sv_geno_df){
+  # For duplicated SV positions, get the indices of the smaller SVs that will
+  #   be removed
+  # INPUTS #
+  # sv_geno_df = data.frame from VCF that includes the columns <full_name> 
+  #                which is character string of Chromosome and positon pasted
+  #                together; and <sv_lenght> which contains the length of 
+  #                the SV.
+  # OUTPUTS #
+  # vector containing the indices of sv_geno_df of duplicated SVs to be 
+  #  removed; these are SVs that are in duplicated positions and that are 
+  #  smaller than the largets SV at that position
+  ##########
+  name_table <- table(sv_geno_df$full_name)
+  dup_names <- names(name_table)[which(name_table > 1)]
+  rm_inds <- c()
+  for(dn in dup_names){
+    tmp_inds <- which(sv_geno_df$full_name == dn)
+    sv_lengths <- sv_geno_df$sv_length[tmp_inds]
+    keep_ind <- tmp_inds[which.max(sv_lengths)]
+    rm_inds <- c(rm_inds, setdiff(tmp_inds, keep_ind))
+  }
+  return(rm_inds)
+}
+
+overlap_inds_to_remove <- function(sv_geno_df, dist_cut){
+  # Find SVs that are close and/or overlap and get the indices of the smaller
+  #   SVs that should be removed
+  #######3
+  chrom_vec <- unique(sv_geno_df$CHROM)
+  rm_ind_vec <- c()
+  for(cv in chrom_vec){
+    tmp_chrom_inds <- which(sv_geno_df$CHROM == cv)
+    tmp_sub_df <- sv_geno_df[tmp_chrom_inds,]
+    for(i in seq(nrow(tmp_sub_df))){
+      tmp_diffs <- abs(tmp_sub_df$POS[i] - tmp_sub_df$POS)
+      close_inds <- which(tmp_diffs <= dist_cut)
+      tmp_sv_len <- tmp_sub_df$sv_length[close_inds]
+      keep_ind <- close_inds[which.max(tmp_sv_len)]
+      tmp_rm_inds <- setdiff(close_inds, keep_ind)
+      rm_ind_vec <- c(rm_ind_vec, tmp_chrom_inds[tmp_rm_inds])
+    }
+  }
+  return(unique(rm_ind_vec))
+  
+
 }
 
 
