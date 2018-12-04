@@ -1,11 +1,13 @@
 # Analysis for looking at private, shared, etc SVs in the PacBio SV data
 
+# LOAD LIBRARIES #
 function_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_analysis_functions.r'
 source(function_file)
 
 function_test_file <- '/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_analysis_functions.test.r'
 # source(function_test_file)
 
+# LOAD DATA #
 data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
 combo_file <- 'ref.ALLData.vcf'
 combo_file_tot <- paste(data_dir, combo_file, sep = '')
@@ -15,6 +17,9 @@ meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_met
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 # samp_meta[,c('lib_name', 'branch_name')]
 
+####################
+
+# Filter samples, SVs, and genotypes
 ## Remove bad branches
 bad_branches <- c('13.4', '14.1')
 bad_samps <- c()
@@ -31,22 +36,22 @@ for(bs in bad_samps){
 
 combo_df_filt <- combo_df[ , -sort(bad_vcf_cols)]
 
-######
-# Filter the SV's before we start the rest of the steps
-# 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
-#      of a sequencing error so should remove these first
-# 1) remove duplicated positions - keep the largest SV of the duplicats
-# 2) check positions that are very close to other SVs - remove the smaller of
-#      the SVs that are within a determined distance of another SV
+## Filter the SV's before we start the rest of the steps
+### 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
+###      of a sequencing error so should remove these first
+### 1) remove duplicated positions - keep the largest SV of the duplicats
+### 2) check positions that are very close to other SVs - remove the smaller of
+###      the SVs that are within a determined distance of another SV
 
 # REF is one letter for INSertions; ALT is one letter for DELetions
 
 # indices to remove that are either 70% mononucleotide repeats, 50% the same
 #   binucleotide repeat, or 60% of two binucleotide repeats
-remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df, mer_length = 8, 
-  per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, per_bn_multi_cutoff = 0.6)
+remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df_filt, 
+  mer_length = 8, per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, 
+  per_bn_multi_cutoff = 0.6)
 
-combo_filt_1 <- combo_df[-remove_8mer_SV_inds, ]
+combo_filt_1 <- combo_df_filt[-remove_8mer_SV_inds, ]
 
 # remove duplicated positions - the smaller SVs are removed
 rm_dup_inds <- dup_inds_to_remove(sv_geno_df = combo_filt_1)
@@ -57,14 +62,17 @@ combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
 too_close_inds_30 <- overlap_inds_to_remove(sv_geno_df = combo_filt_2,
   dist_cut = 30) 
 
-
-
-
+combo_filt_3 <- combo_filt_2[-too_close_inds_30, ]
 
 ## find and remove any SVs with missing genotypes in any sample
-combo_df_2 <- remove_missing_combo_SVs(combo_df_filt)
+combo_df_2 <- remove_missing_combo_SVs(combo_filt_3)
 
-# Extract genotype information. Inclueds
+# NEED ANOTHER FILTERING STEP: REMOVE SVs WITH EXCESSIVE COVERAGE #
+
+
+##########
+
+# Extract genotype information. Includes
 ## converting genos to numeric
 ## getting coverage
 ## getting number of reads supporting each allele
@@ -88,9 +96,9 @@ names(min_cov_floor_vec) <- seq(5, 30, 5)
 
 min_cov_floor_vec
 #     5    10    15    20    25    30 
-# 56642 54052 40021 10999  2149  1009 
+# 49856 47462 34847  9733  1984   926 
 
-# only 1009 SV's have a minimum coverage of 30; 54052 have min coverage of 10
+# only 926 SV's have a minimum coverage of 30; 47462 have min coverage of 10
 
 # RULES I'M GOING BY AS OF 11/2 - these can change, but I'm going to use these
 #  for filtering
@@ -110,9 +118,68 @@ combo_filtered_genotypes <- call_allsamp_genotypes(combo_geno_info_list,
 num_nas <- apply(combo_filtered_genotypes, 1, function(x) sum(is.na(x)))
 table(num_nas)
 #     0     1     2     3     4     5     6     7     8 
-# 38057  8185  4267  2692  1777  1067   497   171    38
-## 38k SVs have no missing data
+# 33833  6927  3637  2343  1582   977   459   159    34
+## 33.8k SVs have no missing data
 
+######################
+
+# SIDE TASK: COVERAGE VS PENETRANCE (allele ratio)
+samp_1_cov <- combo_geno_info_list[[1]][[2]]
+samp_1_al_mat <- combo_geno_info_list[[1]][[3]]
+samp_1_alt_count <- samp_1_al_df[,2]
+samp_1_min_count <- apply(samp_1_al_df, 1, min)
+
+seq_cov <- lapply(combo_geno_info_list, function(x) x[[2]])
+seq_alt_count <- lapply(combo_geno_info_list, function(x) x[[3]][,2])
+seq_min_count <- lapply(combo_geno_info_list, function(x) apply(x[[3]], 1, min))
+
+combo_filt_cov_v_alt <- coverage_vs_penetrance(combo_geno_info_list, 
+  use_alt = T)
+combo_filt_cov_v_min_0 <- coverage_vs_penetrance(combo_geno_info_list, 
+  use_alt = F)
+
+# want to remove sites with suspiciously high coverage and homozygous
+#   genotype calls because only interested in allele ratio in heterozygotes
+too_hi_cov <- which(combo_filt_cov_v_min_0$coverage > 400)
+no_var <- which(combo_filt_cov_v_min_0$per_min < .2)
+
+combo_filt_cov_v_min <- combo_filt_cov_v_min_0[
+  -sort(union(too_hi_cov, no_var)), ]
+
+combo_filt_cov_pen_lm <- lm(combo_filt_cov_v_min$min_allele_count ~ combo_filt_cov_v_min$coverage)
+
+mean_per_min_per_cov <- tapply(combo_filt_cov_v_min$per_min, 
+  combo_filt_cov_v_min$coverage, mean)
+
+combo_filt_mean_min_df <- data.frame(coverage = as.numeric(names(mean_per_min_per_cov)), mean_per_min = mean_per_min_per_cov, stringsAsFactors = F)
+
+library(ggplot2)
+g_combo_filt_cov_v_min <- ggplot(combo_filt_cov_v_min, aes(x = coverage, 
+  y = min_allele_count)) + 
+  geom_point() + 
+  labs(title = 'Filtered SVs penetrance (# reads of allele with lower coverage) vs coverage')
+# this doesn't really help to see what's going on
+
+g_combo_filt_cov_mean_min <- ggplot(combo_filt_mean_min_df, aes(x = coverage,
+  y = mean_per_min)) +
+  geom_point() +
+  labs(title = 'Filtered SVs mean penetrance (% reads of minor allele) vs coverage')
+# NEXT STEP: I should make a few versions based on minimum per_min, which
+#  is sort of like accounting for different error rates for identifying
+#  homozygous genotypes to remove  
+
+
+combo_filt_cov_v_pen_png <- paste('/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/figs/',
+  'filtered_SVs_coverage_v_penetrance.png', sep = '')
+
+png(combo_filt_cov_v_pen_png)
+#g_combo_filt_cov_v_min
+g_combo_filt_cov_mean_min
+dev.off()
+
+
+# CONTINUE FROM HERE - NEED TO FILTER SVs based on genotypes across all samples
+# COULD REMOVE ANY SV's WITH SD > 4
 poss_nas <- c(0:8)
 na_min_vec <- c()
 for(pn in poss_nas){
