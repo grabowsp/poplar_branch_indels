@@ -70,5 +70,35 @@ cp /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/ref.ALLData.vcf /home/t4c1/WORK/grabowsk/
 #### Location in $WORK directory
 * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/ref.ALLData.vcf`
 
+## Analysis of Samples
+### Overview
+* Used the New PacBio results
+* Preliminary results showed unexpected relationships between samples
+* Want to know:
+  1. Do any samples look like they are the result of a sample switch?
+  2. Which sample and/or tree looks like it is the same as the reference?
+    * The reference is supposed to be 14.5, but there is some question \
+about that from preliminary analysis
+### Analysis script
+* `/home/grabowsky/tools/workflows/poplar_branch_indels/r_scripts/pb_SV_sample_analysis.r`
+### Output Files
+#### Distance Matrix and Figures
+* Distance Matrix
+  * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/poplar_lib_manhattan_distance_50bp.txt`
+  * Distance matrix made ussing filtered SV's > 50bp
+* UPGMA Tree
+  * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/figs/sv_dist_50bp_upgma_tree.png`
+* Neighbor Joining (NJ) Tree
+  * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/figs/sv_dist_50bp_nj_tree.png`
+#### Difference from Reference
+* Table of Percent of each genotype
+  * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/percent_SV_genotypes_by_samp.txt`
+  * Reference sample should have fewest ALT SVs
+    * Is more complicated, but does seem that one tree, Tree 13, has fewer \
+ALT SVs than the other tree
+* Barplot
+  * `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/figs/percent_SV_genotypes_barplot.pdf`
+  * Generated using filtered SV's > 50bp
+
 
 

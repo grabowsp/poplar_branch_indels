@@ -36,12 +36,15 @@ for(bs in bad_samps){
 
 combo_df_filt <- combo_df[ , -sort(bad_vcf_cols)]
 
-## Filter the SV's before we start the rest of the steps
-### 1A) Remove bad SV's - according to Jeremy, AT repeats are likely indicative
-###      of a sequencing error so should remove these first
-### 1) remove duplicated positions - keep the largest SV of the duplicats
-### 2) check positions that are very close to other SVs - remove the smaller of
-###      the SVs that are within a determined distance of another SV
+# Filtering example statistics
+# how many positions are removed by the <make_combo_indel_df> function that
+#   selects only INS and DEL
+# I got these values by manipulating some of the code in <make_combo_indel_df>
+
+# table(combo_vcf$type)
+#   BND   DEL   INS   INV 
+#  2154 29852 26942    12
+
 
 # REF is one letter for INSertions; ALT is one letter for DELetions
 
@@ -51,10 +54,20 @@ remove_8mer_SV_inds <- id_prob_SV_seqs(sv_geno_df = combo_df_filt,
   mer_length = 8, per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5, 
   per_bn_multi_cutoff = 0.6)
 
+length(remove_8mer_SV_inds)
+# 6073
+length(remove_8mer_SV_inds)/nrow(combo_df_filt)
+# 10.7%
+
 combo_filt_1 <- combo_df_filt[-remove_8mer_SV_inds, ]
 
 # remove duplicated positions - the smaller SVs are removed
 rm_dup_inds <- dup_inds_to_remove(sv_geno_df = combo_filt_1)
+
+length(rm_dup_inds)
+# 185
+length(rm_dup_inds)/nrow(combo_filt_1)
+# 0.003648196
 
 combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
 
@@ -62,13 +75,115 @@ combo_filt_2 <- combo_filt_1[-rm_dup_inds, ]
 too_close_inds_30 <- overlap_inds_to_remove(sv_geno_df = combo_filt_2,
   dist_cut = 30) 
 
+length(too_close_inds_30)
+# 543
+length(too_close_inds_30)/nrow(combo_filt_2)
+#  0.01074715
+
 combo_filt_3 <- combo_filt_2[-too_close_inds_30, ]
 
 ## find and remove any SVs with missing genotypes in any sample
-combo_df_2 <- remove_missing_combo_SVs(combo_filt_3)
+combo_filt_4 <- remove_missing_combo_SVs(combo_filt_3)
 
-# NEED ANOTHER FILTERING STEP: REMOVE SVs WITH EXCESSIVE COVERAGE #
+nrow(combo_filt_3) - nrow(combo_filt_4)
+# 31
+(nrow(combo_filt_3) - nrow(combo_filt_4))/nrow(combo_filt_3)
+# 0.0006202233
 
+# find and remove SVs with excess coverage
+excess_cov_inds <- id_excess_coverage(combo_filt_4, sd_cut = 3)
+
+length(excess_cov_inds)
+# 26
+length(excess_cov_inds)/nrow(combo_filt_4)
+# 0.0005205101
+
+combo_df_2 <- combo_filt_4[-excess_cov_inds, ]
+
+combo_geno_info_list <- make_allsamp_geno_info_list(combo_df_2)
+
+combo_filtered_genotypes <- call_allsamp_genotypes(combo_geno_info_list,
+  min_sv_coverage = 10, het_ratio_cut = 0.15, min_minor_allele_count = 2,
+  max_hom_ratio = 0.05)
+
+sum(is.na(combo_filtered_genotypes))
+# 36541
+
+sum(is.na(combo_filtered_genotypes)) / length(combo_filtered_genotypes)
+#  0.09148973
+
+geno_SV_NAs <- apply(combo_filtered_genotypes, 1, function(x) sum(is.na(x)))
+sum(geno_SV_NAs > 0)
+# 16105
+sum(geno_SV_NAs > 0)/length(geno_SV_NAs)
+# 0.3225839
+
+# assign scores for genotypes based on penetrance/allele count ratios
+#   and presnece of other sampes with same, high-score genotypes
+combo_filt_adj_scores <- get_adjusted_geno_scores(
+  geno_info_list = combo_geno_info_list, 
+  genotype_mat = combo_filtered_genotypes, 
+  est_error = 0.032, est_penetrance = 0.35, good_score = 0.9, 
+  great_score = 0.98, same_geno_bonus = 0.67)
+
+# find SVs that do not have at least one sample above a coverage threshold
+#   ex: minimum coverage may be 10, but want at least one sample with coverage
+#   above a higher number, like 20
+low_ss_svs <- find_SVs_below_ss_cov(combo_geno_info_list, ss_min_cov = 20)
+
+combo_filt_genos_2 <- combo_filtered_genotypes
+combo_filt_genos_2[which(combo_filt_adj_scores < 0.9)] <- NA
+
+sum(is.na(combo_filt_genos_2)) - sum(is.na(combo_filtered_genotypes))
+# 2630
+
+((sum(is.na(combo_filt_genos_2)) - sum(is.na(combo_filtered_genotypes)))/
+  length(combo_filt_genos_2))
+# 0.006584877
+
+geno2_SV_NAs <- apply(combo_filt_genos_2, 1, function(x) sum(is.na(x)))
+length(setdiff(which(geno2_SV_NAs > 0), which(geno_SV_NAs > 0)))
+# 672
+
+(length(setdiff(which(geno2_SV_NAs > 0), which(geno_SV_NAs > 0))) / 
+  length(geno2_SV_NAs))
+# 0.01346019
+
+length(setdiff(low_ss_svs, which(geno2_SV_NAs > 0)))
+# 26
+
+length(setdiff(low_ss_svs, which(geno2_SV_NAs > 0))) / length(geno2_SV_NAs)
+# 0.0005207812
+
+combo_filt_genos_2[low_ss_svs, ] <- NA
+
+combo_filt_genos_test_noNAs <- filt_geno_mat(combo_filt_genos_2, max_nas = 0)
+nrow(combo_filt_genos_test_noNAs)
+# [1] 33122
+
+orig_n_SVs <- sum(c(2154, 29852, 26942, 12))
+orig_n_SVs - nrow(combo_filt_genos_test_noNAs)
+# 25838
+(orig_n_SVs - nrow(combo_filt_genos_test_noNAs))/orig_n_SVs
+# 0.4382293
+
+combo_filt_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0)
+nrow(combo_filt_genos_noNAs)
+# [1] 33820
+
+filt_genos_test_noNAs_names 
+
+df_in_genos_inds <- which(combo_df_2$full_name_long %in% rownames(
+  combo_filt_genos_test_noNAs))
+
+combo_filt_genos_noNAs_df <- combo_df_2[df_in_genos_inds, ]
+
+length_vec <- c(15, 50, 100, 500, 1000, 10000)
+sapply(length_vec, function(x) sum(combo_filt_genos_noNAs_df$sv_length > x))
+
+
+sum(combo_df_2$full_name_long[df_in_genos_inds] != rownames(combo_filt_genos_test_noNAs))
+# 0
 
 ##########
 
@@ -76,7 +191,6 @@ combo_df_2 <- remove_missing_combo_SVs(combo_filt_3)
 ## converting genos to numeric
 ## getting coverage
 ## getting number of reads supporting each allele
-## combo_df_2[c(1:10), first_samp_ind]
 combo_geno_info_list <- make_allsamp_geno_info_list(combo_df_2)
 
 # generate matrix of coverage
@@ -96,9 +210,9 @@ names(min_cov_floor_vec) <- seq(5, 30, 5)
 
 min_cov_floor_vec
 #     5    10    15    20    25    30 
-# 49856 47462 34847  9733  1984   926 
+# 49830 47436 34821  9707  1958   900 
 
-# only 926 SV's have a minimum coverage of 30; 47462 have min coverage of 10
+# only 900 SV's have a minimum coverage of 30; 47436 have min coverage of 10
 
 # RULES I'M GOING BY AS OF 11/2 - these can change, but I'm going to use these
 #  for filtering
@@ -118,14 +232,98 @@ combo_filtered_genotypes <- call_allsamp_genotypes(combo_geno_info_list,
 num_nas <- apply(combo_filtered_genotypes, 1, function(x) sum(is.na(x)))
 table(num_nas)
 #     0     1     2     3     4     5     6     7     8 
-# 33833  6927  3637  2343  1582   977   459   159    34
+# 33820  6921  3636  2342  1581   976   458   158    33
 ## 33.8k SVs have no missing data
 
-######################
+######
+# Estimate (biased) error rates using homozygous genotype calls
+filt_error_obj <- estimate_error_objs(
+  genotype_mat = combo_filtered_genotypes, 
+  geno_info_list = combo_geno_info_list)
+
+# see what happens if allow for higher higher allele ratios in homozygotes
+alt_filtered_genotypes <- call_allsamp_genotypes(combo_geno_info_list,
+  min_sv_coverage = 10, het_ratio_cut = 0.15, min_minor_allele_count = 2,
+  max_hom_ratio = 0.1)
+
+alt_error_obj <- estimate_error_objs(
+  genotype_mat = alt_filtered_genotypes,
+  geno_info_list = combo_geno_info_list)
+
+# mean error rates based on the number of homozyotes at a SV
+round(filt_error_obj[[2]],5)
+#      0       1       2       3       4       5       6       7       8 
+#     NA      NA 0.01655 0.01481 0.01202 0.01000 0.00761 0.00539 0.00554
+
+round(alt_error_obj[[2]],5)
+#      0       1       2       3       4       5       6       7       8 
+#     NA      NA 0.04932 0.04151 0.03349 0.02862 0.02370 0.01638 0.02055
+
+table(filt_error_obj[[1]][,2])
+#     0     1     2     3     4     5     6     7     8 
+# 39058  3271  2131  1716  1452  1117   680   476    24 
+
+table(alt_error_obj[[1]][,2])
+#     0     1     2     3     4     5     6     7     8 
+# 35696  3421  2389  2162  2211  1813  1208   937    88
+
+# Toughts:
+# 1) When there are fewer homozygous genotypes at a SV, the allele ratio
+#     gets higher and higher, meaning that the singletons are probably
+#     fairly suspicious in that many have a high allele ratio
+# 2) If we use a higher allele ratio cutoff for homozygotes, then,
+#      predictably, the error rate for homozygotes goes up
+# 3) Related to (2), I think that our estimate for error rates can be tied
+#      to the cutoff we use for calling homozygotes 
+# 4) To assigne score/probability to homozygous calls, can choose
+#      an error rate of mean(x) + 1*sd(x) where x is the error rates when
+#      there are 2 or more homozygous genotypes.
+
+round(filt_error_obj[[2]] + (1*filt_error_obj[[3]]),5)
+#      0       1       2       3       4       5       6       7       8 
+#     NA      NA 0.03181 0.02727 0.02210 0.01904 0.01552 0.01188 0.01204
+
+round(alt_error_obj[[2]] + (1*alt_error_obj[[3]]),5)
+#      0       1       2       3       4       5       6       7       8 
+#     NA      NA 0.07578 0.06515 0.05545 0.04941 0.04238 0.03225 0.03570
+ 
+# assign scores for genotypes based on penetrance/allele count ratios
+#   and presnece of other sampes with same, high-score genotypes
+combo_filt_adj_scores <- get_adjusted_geno_scores(
+  geno_info_list = combo_geno_info_list, 
+  genotype_mat = combo_filtered_genotypes, 
+  est_error = 0.032, est_penetrance = 0.35, good_score = 0.9, 
+  great_score = 0.98, same_geno_bonus = 0.67)
+
+# find SVs that do not have at least one sample above a coverage threshold
+#   ex: minimum coverage may be 10, but want at least one sample with coverage
+#   above a higher number, like 20
+low_ss_svs <- find_SVs_below_ss_cov(combo_geno_info_list, ss_min_cov = 20)
+
+# continue from here...
+combo_filt_genos_2 <- combo_filtered_genotypes
+combo_filt_genos_2[which(combo_filt_adj_scores < 0.9)] <- NA
+
+combo_filt_genos_2[low_ss_svs, ] <- NA
+
+combo_filt_genos_test_noNAs <- filt_geno_mat(combo_filt_genos_2, max_nas = 0)
+nrow(combo_filt_genos_test_noNAs)
+# [1] 33122
+
+combo_filt_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0)
+nrow(combo_filt_genos_noNAs)
+# [1] 33820
+
+# filtering based on genotype scores and minimum single-sample coverage
+#   removes 698 (2%) of SVs - worth doing to be conservative
+
+
+
+#####################
 
 # SIDE TASK: COVERAGE VS PENETRANCE (allele ratio)
 samp_1_cov <- combo_geno_info_list[[1]][[2]]
-samp_1_al_mat <- combo_geno_info_list[[1]][[3]]
+samp_1_al_df <- combo_geno_info_list[[1]][[3]]
 samp_1_alt_count <- samp_1_al_df[,2]
 samp_1_min_count <- apply(samp_1_al_df, 1, min)
 
@@ -141,57 +339,71 @@ combo_filt_cov_v_min_0 <- coverage_vs_penetrance(combo_geno_info_list,
 # want to remove sites with suspiciously high coverage and homozygous
 #   genotype calls because only interested in allele ratio in heterozygotes
 too_hi_cov <- which(combo_filt_cov_v_min_0$coverage > 400)
-no_var <- which(combo_filt_cov_v_min_0$per_min < .2)
 
-combo_filt_cov_v_min <- combo_filt_cov_v_min_0[
-  -sort(union(too_hi_cov, no_var)), ]
+combo_filt_cov_v_min_filt <- combo_filt_cov_v_min_0[-too_hi_cov, ]
 
-combo_filt_cov_pen_lm <- lm(combo_filt_cov_v_min$min_allele_count ~ combo_filt_cov_v_min$coverage)
-
-mean_per_min_per_cov <- tapply(combo_filt_cov_v_min$per_min, 
-  combo_filt_cov_v_min$coverage, mean)
-
-combo_filt_mean_min_df <- data.frame(coverage = as.numeric(names(mean_per_min_per_cov)), mean_per_min = mean_per_min_per_cov, stringsAsFactors = F)
-
+min_per_vec <- c(0.01, 0.05, 0.1, 0.2)
 library(ggplot2)
-g_combo_filt_cov_v_min <- ggplot(combo_filt_cov_v_min, aes(x = coverage, 
-  y = min_allele_count)) + 
-  geom_point() + 
-  labs(title = 'Filtered SVs penetrance (# reads of allele with lower coverage) vs coverage')
-# this doesn't really help to see what's going on
-
-g_combo_filt_cov_mean_min <- ggplot(combo_filt_mean_min_df, aes(x = coverage,
-  y = mean_per_min)) +
-  geom_point() +
-  labs(title = 'Filtered SVs mean penetrance (% reads of minor allele) vs coverage')
-# NEXT STEP: I should make a few versions based on minimum per_min, which
-#  is sort of like accounting for different error rates for identifying
-#  homozygous genotypes to remove  
-
+pen_list <- list()
+for(mp in seq(length(min_per_vec))){
+  tmp_min_per <- min_per_vec[mp]
+  tmp_no_var_inds <- which(combo_filt_cov_v_min_filt$per_min < tmp_min_per)
+  tmp_filt_df <- combo_filt_cov_v_min_filt[-tmp_no_var_inds, ]
+  tmp_cov_v_pen <- tapply(tmp_filt_df$per_min, tmp_filt_df$coverage, mean)
+  tmp_cov_v_pen_df <- data.frame(
+    coverage = as.numeric(names(tmp_cov_v_pen)), mean_per_min = tmp_cov_v_pen, 
+    stringsAsFactors = F)
+  tmp_g_cov_mean_min <- ggplot(tmp_cov_v_pen_df, aes(x = coverage, 
+    y = mean_per_min)) +
+    geom_point() +
+    labs(title = paste('Mean penetrance v coverage;\nmin het ratio = ', 
+      tmp_min_per, sep = ''))
+  pen_list[[mp]] <- tmp_g_cov_mean_min
+}
 
 combo_filt_cov_v_pen_png <- paste('/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/figs/',
   'filtered_SVs_coverage_v_penetrance.png', sep = '')
 
-png(combo_filt_cov_v_pen_png)
+library(gridExtra)
+
+png(combo_filt_cov_v_pen_png, width = 600, height = 600)
 #g_combo_filt_cov_v_min
-g_combo_filt_cov_mean_min
+#for(i in seq(length(pen_list))){
+#  do.call(grid.arrange, c(pen_list[[i]], ncol = 2))
+#}
+do.call(grid.arrange, c(pen_list, ncol = 2))
 dev.off()
 
+###############
 
-# CONTINUE FROM HERE - NEED TO FILTER SVs based on genotypes across all samples
-# COULD REMOVE ANY SV's WITH SD > 4
-poss_nas <- c(0:8)
-na_min_vec <- c()
-for(pn in poss_nas){
-  tmp_num <- sum(num_nas <= pn)
-  na_min_vec <- c(na_min_vec, tmp_num)
-}
-names(na_min_vec) <- poss_nas
-na_min_vec
-#     0     1     2     3     4     5     6     7     8 
-# 38057 46242 50509 53201 54978 56045 56542 56713 56751
+# CONTINUE FROM HERE
+# need to figure out a way to id het postions and look at penetrance to make
+#  sure is a good position 
+
 
 combo_filt_genos_noNAs <- filt_geno_mat(combo_filtered_genotypes, max_nas = 0)
+
+##########
+# Streamline filtering and genotype calling
+
+precall_filt_df <- precalling_SV_filtering(combo_df_filt)
+# sampe as combo_df_2
+
+combo_genotypes_1 <- generate_filtered_genotypes(combo_df = precall_filt_df,
+  min_sv_coverage = 10, het_ratio_cut = 0.15, min_minor_allele_count = 2, 
+  max_hom_ratio = 0.05, est_error = 0.032, est_penetrance = 0.35,
+  good_score = 0.9, great_score = 0.98, same_geno_bonus = 0.67, 
+  ss_min_cov = 20)
+
+combo_genos_noNA_50 <- filt_geno_mat(geno_mat = combo_genotypes_1, 
+  max_nas = 0, min_length = 50)
+
+###############
+###############
+
+
+
+
 tally_singleton_svs(combo_filt_genos_noNAs)
 # $homRef_singletons
 # PAXL PAXN PAYK PAZF PAZH PBAT PBAU PBAW 

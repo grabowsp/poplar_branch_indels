@@ -27,6 +27,9 @@ upgma_file <- paste(data_dir,
 num_SV_genotype_file <- paste(data_dir,
   'analysis_results/percent_SV_genotypes_by_samp.txt', sep = '')
 
+per_genotype_barplot <- paste(data_dir,
+  'analysis_results/figs/percent_SV_genotypes_barplot.pdf', sep = '')
+
 ##############
 # Filter samples, SVs, and genotypes
 ## Remove bad branches
@@ -225,6 +228,20 @@ raw_gt_df
 
 # OVERALL TAKEHOME: Sample 14.5 and 13.5 were switched. Reference was sample
 #  14.5 but actually represents branch 13.5.
+
+tmp_plot_df <- raw_gt_df[,c('branch', 'long_per_0', 'long_per_1', 'long_per_2')]
+tmp_plot_df$branch <- as.character(raw_gt_df$branch)
+
+# decided to plot the percentage of non-variant positions
+g_per_noSV <- ggplot(data = tmp_plot_df, aes(x = branch, y = long_per_0)) +
+  geom_bar(stat = 'identity') +
+  labs(title = 'Percent REF/REF positions\nin Poplar libraries', 
+  y = '% REF/REF positions')
+
+pdf(file = per_genotype_barplot, width = 4, height = 4)
+g_per_noSV
+dev.off()
+
 
 quit(save = 'no')
 
