@@ -64,4 +64,9 @@ clonal samples
 some situations with only 1 minor allele read can be used to call het \
 genotype but that has low confidence
 
-
+## Post-Calling Filtering 
+1. Generate and filter based on probability-based genotype score
+  * `get_adjusted_geno_scores` function
+  * Assigns score based on binomial distribution-related relative probability \
+of the genotypes based on read ratios, estimated sequencing error, and 
+estimated minimum allele penetrance
