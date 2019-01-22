@@ -68,5 +68,16 @@ genotype but that has low confidence
 1. Generate and filter based on probability-based genotype score
   * `get_adjusted_geno_scores` function
   * Assigns score based on binomial distribution-related relative probability \
-of the genotypes based on read ratios, estimated sequencing error, and 
+of the genotypes based on read ratios, estimated sequencing error, and \
 estimated minimum allele penetrance
+  * Adjusts the genotype score based on genotypes in other samples at the SV
+    * If sampA has low-score genotype but another sample has the same \
+genotype and with a high score, then the genotype score in sampA is increased
+2. Remove SVs in which no sample has a desired coverage
+  * `find_SVs_below_ss_cov` function
+  * Example: may set minimum coverage at 10, but want at least one sample \
+to have coverage of at least 20
+3. Remove SV's with NA genotypes
+  * `filt_geno_mat` function
+  * can adjust the number of NA genotypes allowed in a SV
+
