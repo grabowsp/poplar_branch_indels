@@ -309,4 +309,34 @@ cp popbranch.ngmlr.sniffles.survivor.supervisedmerged1kbdist.vcf /home/t4c1/WORK
 ### Output
 * Files found in following $WORK subdirectory: `/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/sniffles/`
 
+## Generate Files for Fritz (developer) to troubleshoot
+* Top 250 lines
+* Files:
+  * Initial VCF
+  * Initial merged VCF
+  * Supervised VCF
+  * Final merged VCF
 
+### Commands
+#### Initial VCFs
+* `PBAW.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted.vcf`
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+
+for LIBNAME in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; \
+do head -250 $LIBNAME'.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted.vcf' > \
+$LIBNAME'.initialVCF_top250.vcf'; done
+
+for LIBNAME in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; \
+do head -250 $LIBNAME'.14.5v1.0Ref.ngmlr.sorted.sniffles_sup.sorted.vcf'> \
+$LIBNAME'.supervisedVCF_top250.vcf'; done
+
+head -250 popbranch.ngmlr.sniffles.survivor.rawmerged1kbdist.vcf > \
+initial_merged_VCF_top250.vcf
+
+head -250 popbranch.ngmlr.sniffles.survivor.supervisedmerged1kbdist.vcf > \
+supervised_merged_VCF_top250.vcf
+
+tar -cvzf poplar_files_top250lines.tar.gz *top250.vcf
+
+```

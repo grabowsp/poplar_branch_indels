@@ -126,18 +126,64 @@ write.table(tot_filt_df, file = filt_tab_file_out, quote = F, sep = '\t',
 # Continue from here
 # Next would be generating trees
 
-
-
-combo_file_2 <- 'ref.ALLData_try2.vcf'
-combo_file_2_tot <- paste(data_dir, combo_file_2, sep = '')
-combo_df_2 <- make_combo_indel_df(combo_file_2_tot)
-
 meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 # samp_meta[,c('lib_name', 'branch_name')]
 
-geno_info_2 <- make_allsamp_geno_info_list(combo_df = combo_df_2)
-# make basic dataframe to tally genotypes
+# Generate trees
+# Change names to branch names
+
+for(ngl in seq(length(noNA_geno_list))){
+  tmp_samp_order <- colnames(noNA_geno_list[[ngl]])
+  tmp_branch_names <- c()
+  for(so in tmp_samp_order){
+    tmp_meta_ind <- which(samp_meta$lib_name == so)
+    tmp_branch_names <- c(tmp_branch_names, 
+      samp_meta$branch_name[tmp_meta_ind]) 
+  }
+  colnames(noNA_geno_list[[ngl]]) <- tmp_branch_names
+}
+
+# generate distance matrix and trees
+nj_list <- list()
+upgma_list <- list()
+
+for(ngl in seq(length(noNA_geno_list))){
+  tmp_geno_t <- t(noNA_geno_list[[ngl]])
+  tmp_dist_mat <- dist(tmp_geno_t, method = 'manhattan', diag = T, upper = T)
+  nj_list[[ngl]] <- nj(tmp_dist_mat)
+  upgma_list[[ngl]] <- hclust(tmp_dist_mat, method = 'average')
+}
+
+data_dir <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/'
+
+analysis_res_dir <- paste(data_dir, 'analysis_results/', sep = '')
+
+ts_nj_tree_file <- paste(analysis_res_dir, 
+  'PB_pipe_troubleshooting_NJ_tree.png', sep = '')
+
+png(filename = ts_nj_tree_file, width = 1000, height = 1000)
+par(mfrow = c(2,2))
+for(nji in seq(length(nj_list))){
+  plot(nj_list[[nji]], main = paste('Poplar Branch SV NJ tree\nRun', nji))
+}
+dev.off()
+
+ts_upgma_tree_file <- paste(analysis_res_dir,
+  'PB_pipe_troubleshooting_UPGMA_tree.png', sep = '')
+
+png(filename = ts_upgma_tree_file, width = 1000, height = 1000)
+par(mfrow = c(2,2))
+for(upi in seq(length(upgma_list))){
+  plot(upgma_list[[upi]], main = paste('Poplar Branch SV UPGMA tree\nRun', upi))
+}
+dev.off()
+
+################
+
+
+
+
 
 samp_order_2 <- c('PBAW', 'PBAU', 'PBAT', 'PAZH', 'PAZG', 'PAZF', 'PAYZ', 
   'PAYK', 'PAXN', 'PAXL')
