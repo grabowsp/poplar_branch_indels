@@ -340,3 +340,77 @@ supervised_merged_VCF_top250.vcf
 tar -cvzf poplar_files_top250lines.tar.gz *top250.vcf
 
 ```
+
+## Re-run SURVIVOR on Raw Genotype VCFs
+### Overview
+* First generate file with names of single sample .vcf files to be included in \
+merged .vcf
+* SURVIVOR generates .vcf with genotypes for all the samples used in the \
+analysis
+  * Many genotypes will be incomplete because of low coverage or lack of \
+variation in certain samples
+* Used following values/flags: `1000 1 1 1 0 10`
+### Generate File with Names of Single Sample VCFs
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+ls *sniffles.sorted.vcf > pop_sniffles_vcf_files_raw_call.txt
+```
+### Run SURVIVOR
+#### Shell Script
+```
+/home/f1p1/tmp/poplar_branches/lib_mapping/popbranches.survivor.merge.raw.vcfs_Try2.sh
+```
+#### Run job
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+qsub popbranches.survivor.merge.raw.vcfs_Try2.sh
+```
+### Output
+* Generates merged .vcf with genotypes for all the samples
+* Found in `/home/f1p1/tmp/poplar_branches/lib_mapping`
+* File name: `popbranch.ngmlr.sniffles.survivor.rawmerged1kbdist_Try2.vcf`
+
+## Re-run supervised SNIFFLES using new merged VCF
+### Overview
+* Use merged .vcf from updated SURVIVOR to supervise SV genotyping with SNIFFLES
+### Testing with one library: PBAU
+#### Shell script
+```
+/home/f1p1/tmp/poplar_branches/lib_mapping/PBAU.14.5v1.0Ref.supervised.sniffles_Try2.sh
+```
+#### Submit job
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+qsub PBAU.14.5v1.0Ref.supervised.sniffles_Try2.sh
+```
+### Run on Remaining Libraries
+#### Generate shell scripts
+```
+bash
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do sed 's/PBAU/'"$i"'/g' PBAU.14.5v1.0Ref.supervised.sniffles_Try2.sh > $i.14.5v1.0Ref.supervised.sniffles_Try2.sh ; done
+```
+## SIDE-WAYS
+* Check if get different output from first round of sniffles using newer \
+version of sniffles
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+qsub PBAU.14.5v1.0Ref.sorted.shiffles_Try2.sh
+
+```
+
+
+
+#### Run jobs
+* Need to continue from here if re-running with SNIFFLES worked
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do qsub $i.14.5v1.0Ref.supervised.sniffles.sh ; done
+```
+### Output
+* Generates .vcfs
+* Found in `/home/f1p1/tmp/poplar_branches/lib_mapping`
+* Named `LIBNAME.14.5v1.0Ref.ngmlr.sorted.sniffles_supervised.vcf`
+  * ex: `PAXL.14.5v1.0Ref.ngmlr.sorted.sniffles_supervised.vcf`
+
+
