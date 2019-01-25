@@ -447,13 +447,9 @@ for i in `ls *sorted.sniffles_rt_v2.sh`; do qsub $i; done
 * Sort .vcf output using the `vcf-sort` Perl script from VCFtools
 * SURVIVOR requires the .vcf files to be sorted before comparing files
 * Use VCFtools in conda environment to make sure is most up to date
-### Testing with one library: PBAU
+#### Run on all libraries Libraries
 ```
-cat PBAU.14.5v1.0Ref.ngmlr.sorted.sniffles.vcf | vcf-sort > PBAU.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted.vcf
-```
-### Run on Remaining Libraries
-```
-for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i..14.5v1.0Ref.ngmlr.sorted.sniffles_rt_v2.vcf | vcf-sort > $i.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf; done
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i.14.5v1.0Ref.ngmlr.sorted.sniffles_rt_v2.vcf | vcf-sort > $i.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf; done
 ```
 ### Output
 * Produces sorted .vcf
@@ -462,7 +458,57 @@ for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i..14.5v1.0R
   * ex: `PAXL.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf`
 
 ### Merge sorted raw .vcf files with SURVIVOR
+#### Overview
+* First generate file with names of single sample .vcf files to be included \
+in merged .vcf
+* Used following flags: `1000 1 1 1 0 10`
+#### Generate file with names of .vcfs
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+ls *sniffles.sorted_rt_v2.vcf > pop_sniffles_VCFfiles_raw_rt_v2.txt
+```
+#### Run SURVIVOR
+##### Shell script
+###### Copy and adjust previous .sh script
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+cp ../lib_mapping/popbranches.survivor.merge.raw.vcfs_Try2.sh \
+./pop.survivor.merge.raw.vcfs_rt_v2.sh
+```
+* Adjust code
+#### Run job
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+qsub pop.survivor.merge.raw.vcfs_rt_v2.sh
+```
+#### Output
+* In `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2/`
+* `popbranch.ngmlr.sniffles.survivor.rawmerged1kbdist_rt_v2.vcf`
 ### Run SNIFFLES using merged .vcf as input
+#### Overview
+* use merged .vcf as input for supervised VCF calling with SNIFFLES
+#### Generate shell scripts
+##### Adjust raw .sh script
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+cp PBAU.14.5v1.0Ref.sorted.sniffles_rt_v2.sh \
+PBAU.14.5v1.0Ref.sorted.sniffles.supervised_rt_v2.sh
+```
+* Adjust commands
+##### Create remaining shell files
+```
+bash
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; \
+do sed 's/PBAU/'"$i"'/g' \
+PBAU.14.5v1.0Ref.sorted.sniffles.supervised_rt_v2.sh > \
+$i.14.5v1.0Ref.sorted.sniffles.supervised_rt_v2.sh ; done
+```
+#### Run jobs
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+for i in `ls *sorted.sniffles.supervised_rt_v2.sh`; do qsub $i; done
+```
 ### Sort supervised .vcf files
 ### merge sored supervised .bcf files with SURVIVOR
 
