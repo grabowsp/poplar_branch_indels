@@ -509,8 +509,28 @@ bash
 cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
 for i in `ls *sorted.sniffles.supervised_rt_v2.sh`; do qsub $i; done
 ```
+#### Output
+* Found in: `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2`
+* Named `LIBNAME..14.5v1.0Ref.ngmlr.sorted.sniffles.supervised_rt_v2.vcf`
+  * ex: `PBAW.14.5v1.0Ref.ngmlr.sorted.sniffles.supervised_rt_v2.vcf`
 ### Sort supervised .vcf files
-### merge sored supervised .bcf files with SURVIVOR
+#### Overview
+* sort using `vcf-sort` Perl script in VCFtools
+* use conda environment (`NGS_analysis`) to ensure using updated VCFtools
+#### Command
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i.14.5v1.0Ref.ngmlr.sorted.sniffles.supervised_rt_v2.vcf | vcf-sort > $i.14.5v1.0Ref.ngmlr.sorted.sniffles.sup.sorted_rt_v2.vcf; done
+```
+#### Output
+* Found in: `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2/`
+* Named `LIBNAME.14.5v1.0Ref.ngmlr.sorted.sniffles.sup.sorted_rt_v2.vcf`
+  * ex: `PBAW.14.5v1.0Ref.ngmlr.sorted.sniffles.sup.sorted_rt_v2.vcf`
+### Merge sorted supervised .vcf files with SURVIVOR
+#### Overview
+* Generate list of sorted, supervised .vcf files
+* Used following flags: ``
 
 
 
