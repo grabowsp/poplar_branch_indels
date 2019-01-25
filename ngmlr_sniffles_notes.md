@@ -530,8 +530,23 @@ for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i.14.5v1.0Re
 ### Merge sorted supervised .vcf files with SURVIVOR
 #### Overview
 * Generate list of sorted, supervised .vcf files
-* Used following flags: ``
-
-
-
+* Used following flags: `1000 1 1 1 0 10`
+#### Generate file of .vcf files
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+ls *sniffles.sup.sorted_rt_v2.vcf > pop_sniffles_VCFfiles_supervised_rt_v2.txt
+```
+#### Run SURVIVOR
+##### Copy and adjust raw-vcf SURVIVOR command
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+cp pop.survivor.merge.raw.vcfs_rt_v2.sh \
+pop.survivor.merge.supervised.vcfs_rt_v2.sh
+```
+* Then adjust code
+#### Submit job
+```
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+qsub pop.survivor.merge.supervised.vcfs_rt_v2.sh
+```
 
