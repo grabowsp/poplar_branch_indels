@@ -389,7 +389,7 @@ qsub PBAU.14.5v1.0Ref.supervised.sniffles_Try2.sh
 bash
 for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do sed 's/PBAU/'"$i"'/g' PBAU.14.5v1.0Ref.supervised.sniffles_Try2.sh > $i.14.5v1.0Ref.supervised.sniffles_Try2.sh ; done
 ```
-## SIDE-WAYS
+### SIDE-WAYS
 * Check if get different output from first round of sniffles using newer \
 version of sniffles
 ```
@@ -397,20 +397,75 @@ cd /home/f1p1/tmp/poplar_branches/lib_mapping
 qsub PBAU.14.5v1.0Ref.sorted.shiffles_Try2.sh
 
 ```
+### Course correct
+* Decided at this point (Jan 2019) to rerun the SNIFFLES/SURVIVOR pipeline \
+with the newest versions of both programs to see how the work and generate \
+the issues Lori and I are seeing based on the updated versions
+* I suspect I'll see the same issue as before with read-support falling off \
+drasitcally when running SNIFFLES with the merged .vcf as input
 
-
-
-#### Run jobs
-* Need to continue from here if re-running with SNIFFLES worked
+## Jan 2019 - Re-run sniffles pipeline (`rt_v2` = runthrough version 2)
+### Run SNIFFLES on .bam files
+#### Overview
+* Use SNIFFLES installed on Jan. 24 2019
+* Run SNIFFLES on sorted .bam files generated in Oct 2018
+* Generates .vcf file with SV genotypes. VCF includes info about the SVs in \
+the INFO and GT fields
+* Used following flags:
+  * -s 5
+  * -l 30
+  * -n 5
+#### Adjust old .sh to use updated version of SNIFFLES and new directory
+```
+cd /home/f1p1/tmp/poplar_branches/lib_mapping
+cp PBAU.14.5v1.0Ref.sorted.shiffles_Try2.sh ../sniffles_rt_v2/
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+mv PBAU.14.5v1.0Ref.sorted.shiffles_Try2.sh PBAU.14.5v1.0Ref.sorted.sniffles_rt_v2.sh
+```
+* Then adjust commands in the .sh file
+##### Generate .sh files for all libraries
 ```
 bash
-cd /home/f1p1/tmp/poplar_branches/lib_mapping
-for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do qsub $i.14.5v1.0Ref.supervised.sniffles.sh ; done
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAW; do sed 's/PBAU/'"$i"'/g' PBAU.14.5v1.0Ref.sorted.sniffles_rt_v2.sh > $i.14.5v1.0Ref.sorted.sniffles_rt_v2.sh ; done
+```
+#### Submit jobs
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+for i in `ls *sorted.sniffles_rt_v2.sh`; do qsub $i; done
+```
+#### Output
+* Produces .vcf with genotypes for SVs
+* Found in `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2`
+* Named `LIBNAME.14.5v1.0Ref.ngmlr.sorted.sniffles_rt_v2.vcf`
+  * ex: `PAXL.14.5v1.0Ref.ngmlr.sorted.sniffles_rt_v2.vcf`
+### Sort raw .vcf files
+#### Overview
+* Sort .vcf output using the `vcf-sort` Perl script from VCFtools
+* SURVIVOR requires the .vcf files to be sorted before comparing files
+* Use VCFtools in conda environment to make sure is most up to date
+### Testing with one library: PBAU
+```
+cat PBAU.14.5v1.0Ref.ngmlr.sorted.sniffles.vcf | vcf-sort > PBAU.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted.vcf
+```
+### Run on Remaining Libraries
+```
+for i in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do cat $i..14.5v1.0Ref.ngmlr.sorted.sniffles_rt_v2.vcf | vcf-sort > $i.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf; done
 ```
 ### Output
-* Generates .vcfs
-* Found in `/home/f1p1/tmp/poplar_branches/lib_mapping`
-* Named `LIBNAME.14.5v1.0Ref.ngmlr.sorted.sniffles_supervised.vcf`
-  * ex: `PAXL.14.5v1.0Ref.ngmlr.sorted.sniffles_supervised.vcf`
+* Produces sorted .vcf
+* Found in `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2/`
+* Named `LIBNAME.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf`
+  * ex: `PAXL.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf`
+
+
+
+### Merge sorted raw .vcf files with SURVIVOR
+### Run SNIFFLES using merged .vcf as input
+### Sort supervised .vcf files
+### merge sored supervised .bcf files with SURVIVOR
+
+
 
 
