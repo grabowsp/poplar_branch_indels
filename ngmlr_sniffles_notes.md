@@ -549,4 +549,41 @@ pop.survivor.merge.supervised.vcfs_rt_v2.sh
 cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
 qsub pop.survivor.merge.supervised.vcfs_rt_v2.sh
 ```
+#### Output
+* File directory:
+  * `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2` 
+* File name: 
+  * `popbranch.ngmlr.sniffles.survivor.supervised.merged1kbdist_rt_v2.vcf`
+### Generate Files for Fritz (developer) to troubleshoot
+* Top 500 lines
+* Files:
+  * Initial VCF
+  * Initial merged VCF
+  * Supervised VCF
+  * Final merged VCF
+#### Commands
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+
+for LIBNAME in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; \
+do head -500 $LIBNAME'.14.5v1.0Ref.ngmlr.sorted.sniffles.sorted_rt_v2.vcf' > \
+$LIBNAME'.rerun.initialVCF_top500.vcf'; done
+
+for LIBNAME in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; \
+do head -500 \
+$LIBNAME'.14.5v1.0Ref.ngmlr.sorted.sniffles.sup.sorted_rt_v2.vcf' > \
+$LIBNAME'.rerun.supervisedVCF_top500.vcf'; done
+
+head -500 popbranch.ngmlr.sniffles.survivor.rawmerged1kbdist_rt_v2.vcf > \
+initial.mergedVCF.rerun_top500.vcf
+
+head -500 \
+popbranch.ngmlr.sniffles.survivor.supervised.merged1kbdist_rt_v2.vcf > \
+supervised.mergedVCF.rerun_top500.vcf
+
+tar -cvzf poplar_sniffles_rerun_files_top500lines.tar.gz *top500.vcf
+
+```
+
 
