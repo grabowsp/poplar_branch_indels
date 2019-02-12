@@ -609,5 +609,95 @@ table(apply(uni_del_genos_no2s, 1, function(x) min(table(x))))
 # 1 
 # 20
 
+save.image(file = paste(analysis_res_dir, 'pb_DEL_analysis_workspace.RData', 
+  sep = ''))
+# /home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/pb_DEL_analysis_workspace.RData
+# load('/home/t4c1/WORK/grabowsk/data/poplar_branches/SV_calling_analysis/new_PB_SVcaller/analysis_results/pb_DEL_analysis_workspace.RData')
+
+uni_del_geno_file <- paste(analysis_res_dir, 'pbsv_4run_unified_DELs.txt',
+  sep = '')
+write.table(uni_del_genos, file = uni_del_geno_file, quote = F, sep = '\t',
+  row.names = T, col.names = T)
+
+# generate multifasta file for BLAST querries
+
+which((rownames(uni_del_genos) %in% precall_filt_list[[1]]$full_name_long) 
+  == F)
+# [1] 31 32 33 34
+which((rownames(uni_del_genos) %in% precall_filt_list[[3]]$full_name_long) 
+  == F)
+# [1]  4  5 17 18 21 23 25 27 35 36
+
+set_1_inds <- which(precall_filt_list[[1]]$full_name_long 
+  %in% rownames(uni_del_genos))
+name_and_seq <- precall_filt_list[[1]][set_1_inds, c('full_name_long', 'REF')]
+set_3_inds <- which(precall_filt_list[[3]]$full_name_long 
+  %in% rownames(uni_del_genos))
+name_and_seq <- rbind(name_and_seq, 
+  precall_filt_list[[3]][set_3_inds, c('full_name_long', 'REF')])
+
+name_and_seq <- name_and_seq[-which(duplicated(name_and_seq$full_name_long)), 
+  ]
+name_and_seq$full_name_long <- paste('>', name_and_seq$full_name_long, sep = '')
+
+name_and_seq_vec <- c(rbind(name_and_seq[,1], name_and_seq[,2]))
+
+name_and_seq_file <- paste(analysis_res_dir, 'uni_del_seqs.fasta', sep = '')
+write.table(name_and_seq_vec, file = name_and_seq_file, quote = F, sep = '\t',
+  row.names = F, col.names = F)
+
+# import BLAST results
+
+uni_del_blast_res_file <- paste(analysis_res_dir, 'blast55728.fmt_6.out', 
+  sep = '')
+
+del_blast_res <- read.table(file = uni_del_blast_res_file, sep = '\t', 
+  header = F, stringsAsFactors = F)
+
+colnames(del_blast_res) <- c('query_id', 'subject_id', 'per_identity', 
+  'alignment_length', 'mismatches', 'gap_opens', 'q_start', 'q_end', 
+  's_start', 's_end', 'evalue', 'bit_score')
+
+del_blast_list <- list()
+for(dn in unique(del_blast_res$query_id)){
+  tmp_inds <- which(del_blast_res$query_id == dn)
+  del_blast_list[[dn]] <- del_blast_res[tmp_inds, ]
+}
+
+# have checked through index 18
+
+get_hit_chroms <- function(blast_hit_df, per_score_cut = 0.9){
+  tmp_df_sort <- blast_hit_df[order(blast_hit_df$bit_score, decreasing = T), ]
+  ok_scores <- which(tmp_df_sort$bit_score > 
+    (per_score_cut*tmp_df_sort$bit_score[1]))
+  quer_chrom <- unlist(strsplit(tmp_df_sort$query_id[1], split = '_'))[1]
+  hit_chr_split <- strsplit(tmp_df_sort$subject_id[ok_scores], split = ' ')
+  hit_chrs <- unlist(lapply(hit_chr_split, function(x) x[1]))
+  hit_chrs_list <- list()
+  hit_chrs_list[['quer_chrom']] <- quer_chrom
+  hit_chrs_list[['hit_chrs']] <- hit_chrs
+  return(hit_chrs_list)
+}
+
+hit_chroms_list <- lapply(del_blast_list, get_hit_chroms, per_score_cut = 0.9)
+
+n_diff_chroms <- lapply(hit_chroms_list, 
+  function(x) sum(x$quer_chrom != x$hit_chrs))
+
+diff_chrom_del_names <- names(n_diff_chroms)
+
+n_diff_chrom_df <- data.frame(del_name = diff_chrom_del_names, 
+  n_diff_chroms = unlist(n_diff_chroms))
+
+# DELs that vary at presence of REF allele: only have REF/ALT and ALT/ALT
+# Number of DELs that vary at REF allele with no hits on other chromosomes = 5
+# Number of DELS that vary at REF with hits on 1 or more other chromoeomes = 11
+#  1 = 4; 2 = 3; 3 = 1; 21 = 1; 28 = 1; 36 = 1
+
+# DELs that vary at presence of ALT allele: only have REF/REF and REF/ALT
+# Number of DELS that vary at ALT allele with no hits on other chromosomes = 10
+# Number of DELs that vary at ALT with hits on 1 + other chromosomes = 8
+# 1 = 1; 2 = 4; 12 = 2; 43 = 1; NA = 2
+
 quit(save = 'no')
 
