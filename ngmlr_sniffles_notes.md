@@ -556,12 +556,14 @@ qsub pop.survivor.merge.supervised.vcfs_rt_v2.sh
   * `popbranch.ngmlr.sniffles.survivor.supervised.merged1kbdist_rt_v2.vcf`
 ### Generate Files for Fritz (developer) to troubleshoot
 * Top 500 lines
+* First 2MB on Chr01 - thought this might be more helpful because covers \
+same interval for all files
 * Files:
   * Initial VCF
   * Initial merged VCF
   * Supervised VCF
   * Final merged VCF
-#### Commands
+#### Commands for top 500 lines
 ```
 bash
 cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
@@ -583,7 +585,25 @@ popbranch.ngmlr.sniffles.survivor.supervised.merged1kbdist_rt_v2.vcf > \
 supervised.mergedVCF.rerun_top500.vcf
 
 tar -cvzf poplar_sniffles_rerun_files_top500lines.tar.gz *top500.vcf
-
 ```
+* Output
+  * `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2/poplar_sniffles_rerun_files_top500lines.tar.gz`
+#### Extract the first 2MB of chromosome 2 from each file
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/sniffles_rt_v2
+
+for i in `ls *sorted_rt_v2.vcf`;
+do vcftools --vcf $i --chr Chr01 --to-bp 2000000 --recode --out $i'_Chr01_2MB';
+done
+
+for i in `ls popbranch.ngmlr.sniffles*rt_v2.vcf`;
+do vcftools --vcf $i --chr Chr01 --to-bp 2000000 --recode --out $i'_Chr01_2MB';
+done
+
+tar -cvzf poplar_sniffles_rerun_files_Chr01_2MB.tar.gz *Chr01_2MB.recode.vcf
+```
+* Output
+  * `/home/f1p1/tmp/poplar_branches/sniffles_rt_v2/poplar_sniffles_rerun_files_Chr01_2MB.tar.gz`
 
 
