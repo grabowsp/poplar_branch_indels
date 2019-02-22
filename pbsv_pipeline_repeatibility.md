@@ -171,17 +171,86 @@ pbsv discover --tandem-repeats \
 ref.PAXL_v2_r1.bam Ptr145v1.PAXL_v2_r1.svsig.gz
 ```
 ### PAXL
+* make sure command works
 ```
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
 qsub PAXL.disc_v2_r1.sh
 
+```
+* Make submit scripts for reps 2 and 3
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
+for i in _r2 _r3;
+do 
+sed 's/_r1/'"$i"'/g' PAXL.disc_v2_r1.sh > PAXL.disc_v2$i.sh;
+done
+```
+* submit jobs - STILL NEED TO DO THIS, waiting on the queue to shorten
+  * worried that will go into error state if make the queue too long
+```
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
+qsub PAXL.disc_v2_r2.sh
+qsub PAXL.disc_v2_r3.sh
+```
+### PAXN and PAYK
+* Generate submit scripts
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAXN PAYK;
+  do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.disc_v2_r1.sh > \
+  ./$LIB/$LIB.disc_v2_r1.sh
+  for i in _r2 _r3;
+    do sed 's/_r1/'"$i"'/g' ./$LIB/$LIB.disc_v2_r1.sh > \
+    ./$LIB/$LIB.disc_v2$i.sh;
+  done;
+done
+```
+* Submit jobs - STILL NEED TO DO THIS
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAXN PAYK;
+  do cd ./$LIB
+  for i in _r1 _r2 _r3;
+#    do echo $LIB.disc_v2$i.sh;
+    do qsub $LIB.disc_v2$i.sh;
+  done;
+  cd ..;
+done
+```
+### Rest of the Libraries
+* Generate submit scripts
+  * Already generated scripts for PAXL, PAXN, and PAYK
+  * Only doing one rep (for now) for remaining libraries
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+  do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.disc_v2_r1.sh > \
+  ./$LIB/$LIB.disc_v2_r1.sh;
+done
+```
+* Submit scripts - STILL NEED TO DO THIS
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+  do cd ./$LIB
+  qsub $LIB.disc_v2_r1.sh
+  cd ..;
+done
 ```
 
 ## Call structural vairants and assign genotypes
 ### Overview
 * use `pbsv call` to generate `...vcf` file
 ### Example Code
-
+```
+pbsv call /home/f1p1/tmp/PBSV/Poplar14.5/REFERENCE/Populus_trichocarpa_var_14.5.mainGenome.fasta \
+Ptr145v1.PAXL_v2_r1.svsig.gz Ptr145v1.PAXL_v2_r1.vcf
+```
 ### PAXL
 ```
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
