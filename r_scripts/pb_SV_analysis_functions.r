@@ -39,7 +39,9 @@ gen_indel_raw_df <- function(indiv_df){
   indiv_indels <- indiv_df[-indiv_bnd_inv_inds,]
   indiv_indels$sv_length <- abs(sapply(indiv_indels[,8],
     function(x) as.numeric(gsub('SVLEN=', '',
-    unlist(strsplit(x, split = ';'))[3]))))
+     unlist(strsplit(x, split = ';'))[
+     grep('SVLEN', unlist(strsplit(x, split = ';')))]))))
+#    unlist(strsplit(x, split = ';'))[3]))))
   return(indiv_indels)
 }
 
@@ -263,7 +265,10 @@ remove_missing_combo_SVs <- function(combo_df){
   #
   miss_inds_toremove <- unique(miss_geno_inds)
   #
-  combo_df_2 <- combo_df[-sort(miss_inds_toremove), ]
+  if(length(miss_inds_toremove) > 0){
+    combo_df_2 <- combo_df[-sort(miss_inds_toremove), ]
+  } else {combo_df_2 <- combo_df}
+  #
   return(combo_df_2)
 }
 
@@ -700,7 +705,7 @@ gen_mer_seqs <- function(mer_length, n_bp){
   ####
   nuc_combos <- combn(c('G', 'C', 'T', 'A'), m = n_bp, simplify = T)
   nuc_seqs <- apply(nuc_combos, 2, paste, sep = '', collapse = '')
-  n_repeats <- mer_length / 2
+  n_repeats <- mer_length / nchar(nuc_seqs[1])
   nuc_mer_seqs <- sapply(nuc_seqs, function(x)
     paste(rep(x, times = n_repeats), sep = '', collapse = ''))
   return(nuc_mer_seqs)

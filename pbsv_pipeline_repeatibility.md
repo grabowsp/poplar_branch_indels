@@ -54,17 +54,17 @@ qsub PAXN.mergesubreads.sh
 ```
 bash
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS
-for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
-do cd ./$LIB
-ls m*subreads.bam > $LIB'_subreads_files.fofn'
-cd ..; done
+for LIB in PAYK;
+  do cd ./$LIB
+  ls m*subreads.bam > $LIB'_subreads_files.fofn'
+  cd ..; done
 ```
 ### Generate submit files
 * already merged the files for PAXL and PAXN
 ```
 bash
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS
-for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+for LIB in PAYK;
 do sed 's/PAXN/'"$LIB"'/g' ./PAXN/PAXN.mergesubreads.sh \
 > ./$LIB/$LIB.mergesubreads.sh; done
 ```
@@ -73,7 +73,7 @@ do sed 's/PAXN/'"$LIB"'/g' ./PAXN/PAXN.mergesubreads.sh \
 ```
 bash
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS
-for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+for LIB in PAYK;
 do cd ./$LIB
 qsub $LIB.mergesubreads.sh
 cd ..; done
@@ -83,6 +83,8 @@ cd ..; done
 ### Overview
 * use `pbmm2` to map `..subreads.bam` files to reference
   * had to merge the `subreads.bam` files to get this to work properly
+* NOTE: in future, need to adjust script so output is written to tmp \
+directory and transferred to target directory when done
 ### Example code
 ```
 source /home/raid2/LINUXOPT/miniconda2/bin/activate /home/grabowsky/.conda/envs/NGS_analysis
@@ -137,33 +139,13 @@ for LIB in PAXN PAYK;
   cd ..;
 done
 ```
-### Rest of the Libraries
-* Generate submit scripts
-  * Already generated scripts for PAXL, PAXN, and PAYK
-  * Only doing one rep (for now) for remaining libraries
-```
-bash
-cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
-for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
-  do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.align_v2_r1.sh > \
-  ./$LIB/$LIB.align_v2_r1.sh;
-done
-```
-* Submit scripts
-```
-bash
-cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
-for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
-  do cd ./$LIB
-  qsub $LIB.align_v2_r1.sh
-  cd ..;
-done
-```
 
 ## Discover signatures of structural variation
 ### Overview
 * use `pbsv discover` to generate `...svsig.gz` file
 * GitHub page highly recommends using a tandem repeat annotation .bed file
+* NOTE: in future, need to adjust code so writes output to tmp directory \
+and then transfer output to target directory on completion
 ### Example code
 ```
 pbsv discover --tandem-repeats \
@@ -186,8 +168,7 @@ do
 sed 's/_r1/'"$i"'/g' PAXL.disc_v2_r1.sh > PAXL.disc_v2$i.sh;
 done
 ```
-* submit jobs - STILL NEED TO DO THIS, waiting on the queue to shorten
-  * worried that will go into error state if make the queue too long
+* submit jobs
 ```
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
 qsub PAXL.disc_v2_r2.sh
@@ -207,7 +188,7 @@ for LIB in PAXN PAYK;
   done;
 done
 ```
-* Submit jobs - STILL NEED TO DO THIS
+* Submit jobs
 ```
 bash
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
@@ -217,28 +198,6 @@ for LIB in PAXN PAYK;
 #    do echo $LIB.disc_v2$i.sh;
     do qsub $LIB.disc_v2$i.sh;
   done;
-  cd ..;
-done
-```
-### Rest of the Libraries
-* Generate submit scripts
-  * Already generated scripts for PAXL, PAXN, and PAYK
-  * Only doing one rep (for now) for remaining libraries
-```
-bash
-cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
-for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
-  do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.disc_v2_r1.sh > \
-  ./$LIB/$LIB.disc_v2_r1.sh;
-done
-```
-* Submit scripts - STILL NEED TO DO THIS
-```
-bash
-cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
-for LIB in PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
-  do cd ./$LIB
-  qsub $LIB.disc_v2_r1.sh
   cd ..;
 done
 ```
@@ -255,17 +214,55 @@ Ptr145v1.PAXL_v2_r1.svsig.gz Ptr145v1.PAXL_v2_r1.vcf
 ```
 cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
 qsub PAXL.call_v2_r1.sh
-
 ```
+* adjusted commands to deal with I/O issues from before
+```
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
+qsub PAXL.call_v2_r2.sh
+```
+* generate `..._r3.sh` file
+```
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
+sed 's/_r2/_r3/g' ./PAXL.call_v2_r2.sh > ./PAXL.call_v2_r3.sh
+qsub PAXL.call_v2_r2.sh
+```
+### PAXN and PAYK
+* Generate submit scripts
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAXN PAYK;
+  do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.call_v2_r2.sh > \
+  ./$LIB/$LIB.call_v2_r2.sh
+  for i in _r1 _r3;
+    do sed 's/_r2/'"$i"'/g' ./$LIB/$LIB.call_v2_r2.sh > \
+    ./$LIB/$LIB.call_v2$i.sh;
+  done;
+done
+```
+* Submit jobs
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/
+for LIB in PAXN PAYK;
+  do cd ./$LIB
+  for i in _r1 _r2 _r3;
+#    do echo $LIB.disc_v2$i.sh;
+    do qsub $LIB.call_v2$i.sh;
+  done;
+  cd ..;
+done
+```
+## Compare new individual results to previous pipeline
+### Overview
+* First will `compare ref.PAXL.vcf` (old pipeline) to \
+`Ptr145v1.PAXL_v2_r1.vcf` (new pipeline)
+* Things I'm interested:
+  * Overlap in SVs
+    * `vcftools --diff-site`
+  * Differences in coverage/depth
+    * I don't get why the aligned .bam files were so much bigger for the \
+second round - perhaps Chris can help explain that
+  * Relative numbers of each SV class
+  * Size distribution in each SV class
 
-* NEXT Steps:
-  * check on all the mapping results
-  * Check on PAXL SV calling/genotyping results
-  * Generate commands for discovery for rest of the libraries
-  * Submit discovery jobs
-  * Check on discovery results
-  * Generate commands for sv calling for individuals
-  * Submit sv calling for individuals jobs
-  * Generate commands fof sv calling using all samples
-    * Generate 4 with different sample orders
-  * Submit sv calling for all samples jobs
