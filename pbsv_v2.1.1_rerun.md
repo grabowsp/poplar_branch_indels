@@ -219,3 +219,44 @@ second round - perhaps Chris can help explain that
   * Relative numbers of each SV class
   * Size distribution in each SV class
 
+
+## Move big .bam files to new directory but set up symlinks
+### try something like this
+* `PAXL_big_bam_names.txt`
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXL
+NEW_DIR=/home/f1p2/tmp/Poplar14.5_pbsv/pbsv_v2.1.1_run
+for BAMFILE in `ls ref.PAXL_v2*bam*`;
+  do echo ln -s $NEW_DIR/$BAMFILE $BAMFILE >> PAXL_symlink_coms.txt; done
+/usr/bin/rsync -avuP ref.PAXL_v2*bam* $NEW_DIR
+rm ref.PAXL_v2*bam*
+bash PAXL_symlink_coms.txt
+```
+### Submit job test for PAXN
+* run after the 'discovery' script has run
+* `/home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXN/transfer_run2_bams_PAXN.sh`
+```
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS/PAXN
+qsub transfer_run2_bams_PAXN.sh
+```
+* worked
+### Make scripts for rest of libraries
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS
+for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do sed 's/PAXN/'"$LIB"'/g' ./PAXN/transfer_run2_bams_PAXN.sh > \
+./$LIB/transfer_run2_bams_$LIB.sh;
+done
+```
+### Submit scripts
+```
+bash
+cd /home/f1p1/tmp/PBSV/Poplar14.5/LIBS
+for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do cd ./$LIB
+qsub transfer_run2_bams_$LIB.sh
+cd ..;
+done
+```

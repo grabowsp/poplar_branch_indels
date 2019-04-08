@@ -33,10 +33,10 @@ for LIB in PAXL PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW; do
 saying: `ERROR: BamHeader: read group ID not found`
 * In future runs of ngmlr, I think the `--rg-id` flag will help fix that
 * For now, I will add the the read group info afterwards
-### Using picard to add read group info
-* using the `AddOrReplaceReadGroups` program in picard to add the read group \
+* Using picard to add read group info
+  * using the `AddOrReplaceReadGroups` program in picard to add the read group \
 info
-#### Test with PAXL
+### Test interactive session with PAXL
 * takes about 1hr to run - should run remotely for remaining libraries
 ```
 picard AddOrReplaceReadGroups \
@@ -48,29 +48,131 @@ RGPL=PACBIO \
 RGPU=default_unit1 \
 RGSM=PAXL
 ```
+### Testing Submit scripts test with PAXN
+* shell script
+  * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXN/addngmlrReadGroups.PAXN.sh`
+#### Submit job
+```
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXN
+qsub addngmlrReadGroups.PAXN.sh
+```
+* there will eventually be a new synatx, but not yet
+### Rest of Libraries
+#### Generate submit scripts
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/
+for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do sed 's/PAXN/'"$LIB"'/g' ./PAXN/addngmlrReadGroups.PAXN.sh \
+> ./$LIB/addngmlrReadGroups.$LIB.sh;
+done
+```
+#### Submit jobs
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/
+for LIB in PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do cd $LIB
+qsub addngmlrReadGroups.$LIB.sh
+cd ..;
+done
+```
 
 ## Discover Signatures of Structural Variation
-### Test with PAXL
+### Test with PAXL:
 * using pbmm2 alignement:
   * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/PAXL.pbmm2.v2.2.disc.r01.sh`
 * using ngmlr alignment:
   * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/PAXL.ngmlr.v2.2.disc.r01.sh`
-* submit scripts
+#### submit scripts
 ```
 cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL
 qsub PAXL.pbmm2.v2.2.disc.r01.sh
 qsub PAXL.ngmlr.v2.2.disc.r01.sh
+```
+### Rest of Libraries
+#### Generate submit scripts
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for LIB in PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.pbmm2.v2.2.disc.r01.sh \
+> ./$LIB/$LIB.pbmm2.v2.2.disc.r01.sh
+sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.ngmlr.v2.2.disc.r01.sh \
+> ./$LIB/$LIB.ngmlr.v2.2.disc.r01.sh;
+done
+```
+#### Submit scripts
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for LIB in PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do cd ./$LIB
+qsub $LIB.pbmm2.v2.2.disc.r01.sh
+qsub $LIB.ngmlr.v2.2.disc.r01.sh
+cd ..;
+done
 ```
 
 ## Call SVs
 ### Test with PAXL
 * using pbmm2 alignment
   * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/PAXL.pbmm2.v2.2.call.r01.sh`
-
+* using ngmlr alignment
+  * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/qsub PAXL.ngmlr.v2.2.call.r01.sh`
 * submit scripts
 ```
 cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL
 qsub PAXL.pbmm2.v2.2.call.r01.sh
 qsub PAXL.ngmlr.v2.2.call.r01.sh
 ```
+### Remaining libraries
+#### Generate Scripts
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for LIB in PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.pbmm2.v2.2.call.r01.sh \
+> ./$LIB/$LIB.pbmm2.v2.2.call.r01.sh
+sed 's/PAXL/'"$LIB"'/g' ./PAXL/PAXL.ngmlr.v2.2.call.r01.sh \
+> ./$LIB/$LIB.ngmlr.v2.2.call.r01.sh;
+done
+```
+#### Submit jobs
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for LIB in PAXN PAYK PAYZ PAZF PAZG PAZH PBAT PBAU PBAW;
+do cd ./$LIB
+qsub $LIB.pbmm2.v2.2.call.r01.sh
+qsub $LIB.ngmlr.v2.2.call.r01.sh
+cd ..;
+done
+```
+
+## Call genotypes in all libraries at once
+### Replicate 1
+* alphabetical order of libraries
+* `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/full.call.pbmm2.v2.2.call.r01.sh`
+* * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/full.call.ngmlr.v2.2.call.r01.sh`
+```
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+qsub full.call.ngmlr.v2.2.call.r01.sh
+qsub full.call.pbmm2.v2.2.call.r01.sh
+```
+### Rest of replicates
+* rep 2, 3, and 4 ready to go
+* using same sample orders as seen in `/home/f1p1/tmp/PBSV/Poplar14.5/LIBS`
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for SUBFILE in `ls *r02.sh`;
+do qsub $SUBFILE; done
+for SUBFILE in `ls *r03.sh`;
+do qsub $SUBFILE; done
+for SUBFILE in `ls *r04.sh`;
+do qsub $SUBFILE; done
+
+```
+
 
