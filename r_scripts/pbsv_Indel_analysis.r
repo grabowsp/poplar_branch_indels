@@ -6,11 +6,19 @@ source(function_file)
 library(Hmisc)
 
 # LOAD DATA
-data_dir <- '/home/f1p1/tmp/PBSV/Poplar14.5/LIBS/'
-combo_1_vcf_short <- 'Ptr145v1.ALLData.v2.try1.vcf'
-combo_1_vcf_file <- paste(data_dir, combo_1_vcf_short, sep = '')
+args <- commandArgs(trailingOnly = T)
 
-meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
+info_file <- args[1]
+info_list <- readRDS(info_file)
+
+data_dir <- info_list[['data_dir']]
+vcf_short <- info_list[['vcf_short']]
+#data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
+#vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
+combo_1_vcf_file <- paste(data_dir, vcf_short, sep = '')
+
+meta_in <- info_list[['meta_in']]
+#meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
 # SET OUTPUT
@@ -33,15 +41,15 @@ samp_ord_corr_out <- paste(combo_1_vcf_file, '_varSVsampOrderCorr.txt',
 sing_ord_corr_out <- paste(combo_1_vcf_file, '_singletonSampOrderCorr.txt', 
   sep = '')
 
-bnd_stat_list <- list()
-bnd_stat_list_out <- paste(combo_1_vcf_file, '_BNDstats.txt', sep = '')
-
 # SET VARIABLES
-lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
-  'PBAU', 'PBAW')
+lib_order <- info_list[['lib_order']]
+#lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
+#  'PBAU', 'PBAW')
 
-branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
-branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
+branch_13_lab <- info_list[['branch_13_lab']]
+branch_14_lab <- info_list[['branch_14_lab']]
+#branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
+#branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 
 # SET CONSTANTS
 
@@ -56,157 +64,6 @@ type_info <- unlist(lapply(raw_info,
   function(x) unlist(strsplit(x[[1]], split = '='))[2]))
 
 raw_type_tab <- table(type_info)
-#   BND   DEL   INS   INV 
-# 28432 29089 21618    31
-
-bnd_stat_list[['Raw BND count']] <- sum(type_info == 'BND')
-bnd_stat_list[['Raw BND count / 4']] <- (sum(type_info == 'BND') / 4)
-
-bnd_receiv_dist <- 100
-insert_max_size <- 1e7
-
-bnd_inds <- which(type_info == 'BND')
-
-
-# Find likely INSERTIONS that are represented by BND entries
-
-test_bnd_ins <- potential_BND_insertions(vcf_df = raw_vcf, 
-  bnd_receiv_dist = bnd_receiv_dist, 
-  insert_max_size = insert_max_size, show_progress = T)
-
-bnd_stat_list[['Initial BND-INS count']] <- nrow(test_bnd_ins)
-
-raw_bnd_size_tab <- summary(test_bnd_ins$ins_size)
-
-for(i in seq(length(raw_bnd_size_tab))){
-  bnd_stat_list[[paste('Initial BND-INS size', 
-    names(raw_bnd_size_tab), sep = ' ')[i]]] <- as.vector(raw_bnd_size_tab)[i]
-}
-
-# nrow(test_bnd_ins)
-# 1441
-# There seem to be 1441 INSERTIONS that are represented by BND entries
-
-## Check/filter by POS confidence interval
-
-ci_5prime_length <- get_cipos_length(raw_vcf, 
-  bnd_inds = test_bnd_ins$rec_5prime_ind)
-
-ci_3prime_length <- get_cipos_length(raw_vcf,
-  bnd_inds = test_bnd_ins$rec_3prime_ind)
-
-cipos_cut <- 200
-cipos_bad <- union(which(ci_5prime_length > cipos_cut), 
-  which(ci_3prime_length > cipos_cut))
-
-# remove BND-INS with excessive CIPOS
-bnd_ins_filt1 <- test_bnd_ins[-cipos_bad, ]
-
-bnd_stat_list[['Count of BND-INS with good CIPOS']] <- nrow(bnd_ins_filt1)
-
-## GENERATE AND FILTER GENOTYPES OF BND-INS
-# add info to vcf so it works with previous functions
-# scavanged from 'make_combo_indel_df' function
-test_vcf_header <- scan(combo_1_vcf_file, nlines = 100, what = 'character',
-  sep = '\n', quiet = T)
-test_vcf_info_ind <- grep('#CHROM', test_vcf_header, fixed = T)
-test_vcf_col_info <-  gsub('#', '', 
-  unlist(strsplit(test_vcf_header[test_vcf_info_ind], 
-  split = '\t')), fixed = T)
-
-colnames(raw_vcf) <- test_vcf_col_info
-
-raw_vcf$full_name <- paste(raw_vcf[,1], raw_vcf[,2], sep = '_')
-
-# 5' genotypes
-
-test_5prime_geno_info <- make_allsamp_geno_info_list(
-  raw_vcf[bnd_ins_filt1$rec_5prime_ind, ])
-
-tmp_5prime_genotypes <- call_allsamp_genotypes(
-  geno_info_list = test_5prime_geno_info, min_sv_coverage = 10, 
-  het_ratio_cut = 0.25, min_minor_allele_count = 2, max_hom_ratio = 0.05)
-
-# need rownames so can easily compare the 5' and 3' genotype matrices
-rownames(tmp_5prime_genotypes) <- paste( paste(
-  paste('BND_INS', seq(nrow(bnd_ins_filt1)), sep = '_'), 
-  'BND', sep = '_'),
-  bnd_ins_filt1$ins_size, sep = '_')
-
-tmp_5prime_noNA <- filt_geno_mat(geno_mat = tmp_5prime_genotypes, max_nas = 0)
-
-##
-# 3' genotypes
-
-test_3prime_geno_info <- make_allsamp_geno_info_list(
-  raw_vcf[bnd_ins_filt1$rec_3prime_ind, ])
-
-tmp_3prime_genotypes <- call_allsamp_genotypes(
-  geno_info_list = test_3prime_geno_info, min_sv_coverage = 10, 
-  het_ratio_cut = 0.25, min_minor_allele_count = 2, max_hom_ratio = 0.05)
-
-rownames(tmp_3prime_genotypes) <- paste( paste(
-  paste('BND_INS', seq(nrow(bnd_ins_filt1)), sep = '_'), 
-  'BND', sep = '_'),
-  bnd_ins_filt1$ins_size, sep = '_')
-
-tmp_3prime_noNA <- filt_geno_mat(geno_mat = tmp_3prime_genotypes, max_nas = 0)
-
-# make sure have BND-INS that pass for both 5' and 3'
-both_side_names <- intersect(rownames(tmp_5prime_noNA), 
-  rownames(tmp_3prime_noNA))
-
-bnd_stat_list[['N BND-INS with 5 and 3prime passing genotype filters']] <- (
-  length(both_side_names))
-
-unmatch_rownames <- both_side_names[which(
-  apply(tmp_5prime_noNA[both_side_names, ], 1, function(x) 
-  paste(x, collapse = '')) != 
-  apply(tmp_3prime_noNA[both_side_names, ], 1,
-  function(x) paste(x, collapse = '')) )]
-
-bnd_good_genos <- tmp_5prime_noNA[setdiff(both_side_names, unmatch_rownames), ]
-
-bnd_stat_list[['N BND-INS with matching 5 and 3prime genotypes']] <- (
-  nrow(bnd_good_genos))
-# nrow(bnd_good_genos)
-# 43
-# 43 BND-INS pass my filtering criteria: good coverage, good quality genotypes,
-#     no missing genotypes, 5' and 3' genotypes match
-
-bnd_n_genotypes <- apply(bnd_good_genos, 1, function(x) length(unique(x)))
-
-bnd_stat_list[['N Variable Good BND-INS']] <- sum(bnd_n_genotypes > 1)
-# sum(bnd_n_genotypes > 1)
-# [1] 0
-# no variable filtered BND-INSERTIONS
-
-bnd_stat_df <- data.frame(label = names(bnd_stat_list), 
-  value = unlist(bnd_stat_list),
-  stringsAsFactors = F)
-
-write.table(bnd_stat_df, file = bnd_stat_list_out, quote = F, sep = '\t',
-  row.names = F, col.names = T)
-
-# Information to output:
-# 1) Total number of BND-INS
-# 2) Summary of size range of insertions
-# 3) Total number of BND-INS that survive all the filtering steps
-# 4) Total number of variable BND-INS
-
-
-######
-######
-########
-########
-# takes 17 minutes to process full set of BND indices
-# get 1351 insertions from 28,432 total BND entries
-# takes 19 minutes to process full set of BNDs using 100 dist between 5' and 3'
-# get 1441 insertions (not that many more...)
-
-# comp_inds <- intersect(chr1_bnds, bnd_3prime)
-
-######
 
 for(i in seq(length(raw_type_tab))){
   stat_list[[paste('raw', names(raw_type_tab), sep = ' ')[i]]] <- as.vector(

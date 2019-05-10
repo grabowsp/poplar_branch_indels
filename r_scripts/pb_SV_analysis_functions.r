@@ -509,14 +509,34 @@ tally_singleton_svs <- function(geno_mat){
   test_n_2 <- apply(geno_mat[two_geno_inds, ], 1, function(x) sum(x == 2))
   #
   homRef_singleton_SVs <- two_geno_inds[which(test_n_0 == 1)]
-  homRef_sing_lib <- apply(geno_mat[homRef_singleton_SVs,], 1,
-    function(x) colnames(geno_mat)[which(x == 0)])
+  if(length(homRef_singleton_SVs) == 0){homRef_sing_lib <- c()}
+  if(length(homRef_singleton_SVs) == 1){
+    homRef_sing_lib <- names(which(geno_mat[homRef_singleton_SVs, ] == 1))
+  }
+  if(length(homRef_singleton_SVs) > 1){
+    homRef_sing_lib <- apply(geno_mat[homRef_singleton_SVs,], 1,
+      function(x) colnames(geno_mat)[which(x == 0)])
+  }
+  #
   homAlt_singleton_SVs <- two_geno_inds[which(test_n_2 == 1)]
-  homAlt_sing_lib <- apply(geno_mat[homAlt_singleton_SVs,], 1,
-    function(x) colnames(geno_mat)[which(x == 2)])
+  if(length(homAlt_singleton_SVs) == 0){homAlt_sing_lib <- c()}
+  if(length(homAlt_singleton_SVs) == 1){
+    homAlt_sing_lib <- names(which(geno_mat[homAlt_singleton_SVs, ] == 1))
+  }
+  if(length(homAlt_singleton_SVs) > 1){
+    homAlt_sing_lib <- apply(geno_mat[homAlt_singleton_SVs,], 1,
+      function(x) colnames(geno_mat)[which(x == 2)])
+  }
+  #
   het_singleton_SVs <- two_geno_inds[which(test_n_1 == 1)]
-  het_sing_lib <- apply(geno_mat[het_singleton_SVs,], 1,
-    function(x) colnames(geno_mat)[which(x == 1)])
+  if(length(het_singleton_SVs) == 0){het_sing_lib <- c()}
+  if(length(het_singleton_SVs) == 1){
+    het_sing_lib <- names(which(geno_mat[het_singleton_SVs, ] == 1))
+  }
+  if(length(het_singleton_SVs) > 1){
+    het_sing_lib <- apply(geno_mat[het_singleton_SVs,], 1,
+      function(x) colnames(geno_mat)[which(x == 1)])
+  }
   #
   sing_tab_list <- list()
   sing_tab_list[['homRef_singletons']] <- table(homRef_sing_lib)
@@ -1398,6 +1418,120 @@ gen_singleton_df <- function(geno_mat, basic_df){
     }
   }
   return(tmp_df)
+}
+
+potential_BND_insertions <- function(vcf_df, bnd_receiv_dist = 100,
+  insert_max_size = 1e7, show_progress = F){
+  # Function to find likely insertions that are represented by BND entries
+  #   in a VCF file
+  # Goals: 1) Find 5' and 3' BND entries that are within a certain distance
+  #  2) Potential matches need to have BND mates from the same chromosome
+  # INPUTS
+  # vcf_df = data.frame generated from VCF file
+  # bnd_receiv_dist = the maximum distance between the 5' and 3' end where
+  #                    the sequence is supposed to be inserted
+  # insert_max_size = the maximum size of the inserted sequence - so that
+  #                    entire chromosomes aren't included here
+  # show_progress = print the chromosome that's being processed to show the
+  #                  progress of the function. <T> = show progress
+  # OUTPUT
+  # list with each entry a dataframe contain info about potential insertions
+  #  represented by the BNDs
+  # data.frames include indices in vcf_df of the 5' and 3' receiving locations,
+  #   their mates, the chromosome and position of the receiving location, and
+  #   the chromosome and size of the inserted sequence
+  ################
+  bnd_inds <- which(type_info == 'BND')
+  bnd_5prime <- intersect(grep('^A|^T|^C|^G', vcf_df[,5]), bnd_inds)
+  bnd_3prime <- setdiff(bnd_inds, bnd_5prime)
+  bnd_ins_ls <- list()
+  for(ucn in unique(vcf_df[,1])){
+    tmp_chr_inds <- which(vcf_df[,1] == ucn)
+    chr_test_inds <- intersect(bnd_5prime, tmp_chr_inds)
+    comp_inds <- intersect(bnd_3prime, tmp_chr_inds)
+    if(show_progress){print(ucn)}
+    for(cti in chr_test_inds){
+      test_ind <- cti
+      tmp_pos <- vcf_df[test_ind, 2]
+      # look for 3' indices within the distance cutoff
+      tmp_comp_matches <- which(
+        (vcf_df[comp_inds, 2] <= tmp_pos + bnd_receiv_dist)
+        & (vcf_df[comp_inds, 2] - tmp_pos >= 0 ))
+      tmp_match_inds <- comp_inds[tmp_comp_matches]
+      #
+      if(length(tmp_match_inds) > 0){
+        # more info about the 5' recieving end of the BND
+        test_name <- paste(vcf_df[test_ind, c(1,2)], collapse = ':')
+        test_chr <- vcf_df[test_ind, 1]
+        # info about the mate
+        mate_5prime <- strsplit(vcf_df[test_ind, 3], split = '-')[[1]][2]
+        mate_5prime_chrom <- strsplit(mate_5prime, split = ':')[[1]][1]
+        mate_5prime_pos <- as.numeric(strsplit(mate_5prime,
+          split = ':')[[1]][2])
+        #
+        mate_5prime_ind <- intersect(
+          grep(paste(mate_5prime, '-', sep = ''), vcf_df[,3]),
+          grep(paste('-', test_name, sep = ''), vcf_df[,3]))
+        #  Check if any of the poptential matches are good
+        for(i in seq(length(tmp_match_inds))){
+          tmp_sing_ind <- tmp_match_inds[i]
+          tmp_match_name <- paste(vcf_df[tmp_sing_ind, c(1,2)], collapse = ':')
+          #
+          pot_mate_3prime <- strsplit(vcf_df[tmp_sing_ind, 3],
+            split = '-')[[1]][2]
+          pot_mate_3prime_chrom <- strsplit(pot_mate_3prime,
+            split = ':')[[1]][1]
+          pot_mate_3prime_pos <- as.numeric(strsplit
+            (pot_mate_3prime, split = ':')[[1]][2])
+          #
+          pot_mate_size <- abs(pot_mate_3prime_pos - mate_5prime_pos)
+          #
+          mate_3prime_ind <- intersect(
+            grep(paste(pot_mate_3prime, '-', sep = ''), vcf_df[,3]),
+            grep(paste('-', tmp_match_name, sep = ''), vcf_df[,3]))
+          #
+          if((mate_5prime_chrom == pot_mate_3prime_chrom) &
+            (pot_mate_size <= insert_max_size)){
+            bnd_ins_ls[[test_name]] <- data.frame(
+              rec_5prime_ind = test_ind,
+              rec_3prime_ind = tmp_sing_ind,
+              donor_5prime_ind = mate_5prime_ind,
+              donor_3prime_ind = mate_3prime_ind,
+              rec_chrom = test_chr,
+              rec_pos = tmp_pos,
+              ins_chrom = mate_5prime_chrom,
+              ins_size = pot_mate_size,
+              stringsAsFactors = F)
+          }
+        }
+      }
+    }
+  }
+  bnd_ins_df <- data.frame(matrix(data = unlist(bnd_ins_ls),
+    ncol = ncol(bnd_ins_ls[[1]]), byrow = T), stringsAsFactors = F)
+  colnames(bnd_ins_df) <- colnames(bnd_ins_ls[[1]])
+  bnd_ins_df[ , c(1:4,6,8)] <- apply(bnd_ins_df[, c(1:4,6,8)], 2, function(x)
+    as.numeric(x))
+  return(bnd_ins_df)
+}
+
+get_cipos_length <- function(vcf_df, bnd_inds){
+  # Extract the length of the POS confidence interval, CIPOS, for BND entries
+  # INPUTS
+  # vcf_df = data.frame generated from VCF file
+  # bnd_inds = row indices in vcf_df that contain the BND entries for which
+  #              want to get the CIPOS length from
+  # OUTPUT
+  # vector of CI lengths
+  ######
+  bnd_info_list <- strsplit(vcf_df[bnd_inds, 8], split = ';')
+  bnd_cipos_list <- lapply(bnd_info_list, function(x) x[2])
+  bnd_cipos_vec <- unlist(bnd_cipos_list)
+  bnd_cipos_vec <- gsub('CIPOS=', '', bnd_cipos_vec)
+  cipos_info <- strsplit(bnd_cipos_vec, split = ',')
+  cipos_length <- unlist(lapply(cipos_info, function(x) as.numeric(x[2]) - 
+    as.numeric(x[1])))
+  return(cipos_length)
 }
 
 

@@ -140,7 +140,7 @@ new_bnd_inds <- which(new_type == 'BND')
 chr1_bnds <- intersect(which(tmp_new_vcf[,1] == 'Chr01'), new_bnd_inds)
 
 bnd_3prime <- intersect(grep('^A|^T|^C|^G', tmp_new_vcf[,5]), new_bnd_inds)
-bnd_5prime <- setdiff(new_bnd_inds, bnd_5prime)
+bnd_5prime <- setdiff(new_bnd_inds, bnd_3prime)
 
 bnd_3prime_cor_orient <- bnd_3prime[which((bnd_3prime + 1) %in% bnd_5prime)]
 
