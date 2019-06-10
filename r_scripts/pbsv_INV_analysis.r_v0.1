@@ -11,20 +11,17 @@ source(function_file)
 args <- commandArgs(trailingOnly = T)
 
 info_file <- args[1]
-res_info_df <- read.table(info_file, header = F, stringsAsFactors = F,
-  sep = '\t', row.names = 1)
+info_list <- readRDS(info_file)
 
-combo_1_vcf_file <- trimws(res_info_df['vcf_full', 1])
+data_dir <- info_list[['data_dir']]
+combo_1_vcf_short <- info_list[['vcf_short']]
 
-res_file_parts <- unlist(strsplit(combo_1_vcf_file, split = '/'))
-data_dir <- paste(
-  paste(res_file_parts[-length(res_file_parts)], collapse = '/'),
-  '/', sep = '')
-vcf_short <- res_file_parts[length(res_file_parts)]
-#data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
-#vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
+# data_dir <- '/home/f1p1/tmp/PBSV/Poplar14.5/LIBS/'
+# combo_1_vcf_short <- 'Ptr145v1.ALLData.v2.try1.vcf'
 
-meta_in <- trimws(res_info_df['meta_in', 1])
+combo_1_vcf_file <- paste(data_dir, combo_1_vcf_short, sep = '')
+
+meta_in <- info_list[['meta_in']]
 #meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
@@ -34,15 +31,12 @@ inv_stat_list <- list()
 inv_stat_list_out <- paste(combo_1_vcf_file, '_INVstats.txt', sep = '')
 
 # SET VARIABLES
-lib_order <- trimws(unlist(strsplit(res_info_df['lib_order',1], split = ',')))
+# for now, don't need this info
 #lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
 #  'PBAU', 'PBAW')
 
-branch_14_lab <- as.numeric(
-  trimws(unlist(strsplit(res_info_df['branch_13_lab',1], split = ','))))
-branch_13_lab <- as.numeric(
-  trimws(unlist(strsplit(res_info_df['branch_14_lab',1], split = ','))))
-
+branch_13_lab <- info_list[['branch_13_lab']]
+branch_14_lab <- info_list[['branch_14_lab']]
 #branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
 #branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 
@@ -101,7 +95,7 @@ tmp_inv_genotypes <- call_allsamp_genotypes(
   het_ratio_cut = 0.25, min_minor_allele_count = 2, max_hom_ratio = 0.05)
 
 rownames(tmp_inv_genotypes) <- paste(raw_vcf$CHROM[inv_inds], 
-  raw_vcf$POS[inv_inds], inv_length_vec, 'INV', sep = '_')
+  raw_vcf$POS[inv_inds], 'INV', sep = '_')
 
 tmp_inv_genos_noNA <- filt_geno_mat(geno_mat = tmp_inv_genotypes, max_nas = 0)
 
@@ -114,7 +108,7 @@ geno1_var <- tmp_inv_genos_noNA[which(n_geno_vec > 1), ]
 inv_stat_list[['Number variable Filtered INV']] <- nrow(geno1_var)
 
 ###################
-# Added stuff below from InDel script to try to get "good" variable INVs
+# Added stuff below from InDel script to try to get "good" variable DUPs
 
 if(nrow(geno1_var) == 0){
   inv_stat_list[['N variable INVs with loss-of-heterozygosity']] <- 0

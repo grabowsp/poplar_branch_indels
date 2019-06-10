@@ -6,39 +6,54 @@ source(function_file)
 library(Hmisc)
 
 # LOAD DATA
-data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
-combo_1_vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r03.vcf'
-combo_1_vcf_file <- paste(data_dir, combo_1_vcf_short, sep = '')
+args <- commandArgs(trailingOnly = T)
 
-meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
+info_file <- args[1]
+info_list <- readRDS(info_file)
+
+data_dir <- info_list[['data_dir']]
+vcf_short <- info_list[['vcf_short']]
+#data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
+#vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
+combo_1_vcf_file <- paste(data_dir, vcf_short, sep = '')
+
+meta_in <- info_list[['meta_in']]
+#meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
 # SET OUTPUT
 ## General Stat list
 stat_list <- list()
-stat_list_out <- paste(combo_1_vcf_file, '_SVstats.txt', sep = '')
+stat_list_out <- paste(combo_1_vcf_file, '_SVstats_permissive.txt', sep = '')
 
 # dataframe containing tallys of variable INDELs
 # samp_info_df
-samp_info_out <- paste(combo_1_vcf_file, '_sampSVInfo.txt', sep = '')
+samp_info_out <- paste(combo_1_vcf_file, '_sampSVInfo_permissive.txt', sep = '')
 
 # dataframe containing the number of singletons of each SV type and
 #   genotype class for each sample
 # samp_sing_df
-samp_sing_out <- paste(combo_1_vcf_file, '_sampSingletonInfo.txt', sep = '')
-
-samp_ord_corr_out <- paste(combo_1_vcf_file, '_varSVsampOrderCorr.txt', 
+samp_sing_out <- paste(combo_1_vcf_file, '_sampSingletonInfo_permissive.txt', 
   sep = '')
 
-sing_ord_corr_out <- paste(combo_1_vcf_file, '_singletonSampOrderCorr.txt', 
-  sep = '')
+samp_ord_corr_out <- paste(combo_1_vcf_file, 
+  '_varSVsampOrderCorr_permissive.txt', sep = '')
+
+sing_ord_corr_out <- paste(combo_1_vcf_file, 
+  '_singletonSampOrderCorr_permissive.txt', sep = '')
+
+good_var_genos_out <- paste(combo_1_vcf_file, 
+  '_goodINDEL_genos_permissive.rds', sep = '')
 
 # SET VARIABLES
-lib_order <- c('PBAU', 'PAYZ', 'PBAW', 'PAXN', 'PBAT', 'PAXL', 'PAZG', 
-  'PAYK', 'PAZF', 'PAZH')
+lib_order <- info_list[['lib_order']]
+#lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
+#  'PBAU', 'PBAW')
 
-branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
-branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
+branch_13_lab <- info_list[['branch_13_lab']]
+branch_14_lab <- info_list[['branch_14_lab']]
+#branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
+#branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 
 # SET CONSTANTS
 
@@ -48,22 +63,11 @@ branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 raw_vcf <- read.table(combo_1_vcf_file, header = F, stringsAsFactors = F,
   sep = '\t')
 
-raw_info <- strsplit(raw_vcf[,8], split = ';')
+raw_info <- strsplit(gsub('IMPRECISE;', '', raw_vcf[,8]), split = ';')
 type_info <- unlist(lapply(raw_info, 
   function(x) unlist(strsplit(x[[1]], split = '='))[2]))
 
 raw_type_tab <- table(type_info)
-#   BND   DEL   INS   INV 
-# 28432 29089 21618    31
-
-#####
-# my attempt to filterthe bnd data
-#bnd_inds <- which(type_info == 'BND')
-
-#chr1_bnds <- intersect(which(raw_vcf[,1] == 'Chr01'), bnd_inds)
-
-
-######
 
 for(i in seq(length(raw_type_tab))){
   stat_list[[paste('raw', names(raw_type_tab), sep = ' ')[i]]] <- as.vector(
@@ -77,9 +81,11 @@ stat_list[['BND count / 4 (possible INS)']] <- bnd_ins_equiv
 # Filtered InDel Analysis
 combo1_vcf <- make_combo_indel_df(combo_1_vcf_file)
 
-combo1_precall_df <- precalling_SV_filtering(sv_geno_df = combo1_vcf,
-  mer_length = 8, per_mn_cutoff = 0.7, per_bn_pure_cutoff = 0.5,
-  per_bn_multi_cutoff = 0.6, dist_cut = 1000, sd_cut = 3, use_sd = T)
+#combo1_precall_df <- precalling_SV_filtering(sv_geno_df = combo1_vcf,
+#  mer_length = 8, per_mn_cutoff = 1, per_bn_pure_cutoff = 1,
+#  per_bn_multi_cutoff = 1, dist_cut = 500, sd_cut = 3, use_sd = T)
+
+combo1_precall_df <- combo1_vcf
 
 combo1_genotypes_1 <- generate_filtered_genotypes(combo_df = combo1_precall_df,
   min_sv_coverage = 10, het_ratio_cut = 0.25, min_minor_allele_count = 2,
@@ -406,8 +412,6 @@ stat_list[['Percent singleton variable DELs > 100bp']] <- sum(apply(
 
 stat_list[['Number singleton HET DELs > 100bp']] <- sum(del1_100_singletons$het)
 
-# mango
-
 # INSERTIONS
 ins1_singletons <- gen_singleton_df(geno_mat = ins1_var,
   basic_df = basic_singleton_df)
@@ -542,15 +546,23 @@ low_13_het <- apply(geno1_var[ , t13_cols], 1, function(x) min(which(x == 1)))
 hi_13_hom <- apply(geno1_var[ , t13_cols], 1, function(x) 
   max(union(which(x == 0), which(x == 2))))
 
+soloHet_13 <- which(apply(geno1_var[, t13_cols], 1, function(x) sum(x == 1)) 
+  == 1)
+
 low_13_change <- low_13_het - hi_13_hom
-lossOfHet_13 <- which(low_13_change < 0 & low_13_change > -Inf)
+lossOfHet_13 <- setdiff(which(low_13_change < 0 & low_13_change > -Inf), 
+  soloHet_13)
 
 low_14_het <- apply(geno1_var[ , t14_cols], 1, function(x) min(which(x == 1)))
 hi_14_hom <- apply(geno1_var[ , t14_cols], 1, function(x) 
   max(union(which(x == 0), which(x == 2))))
 
+soloHet_14 <- which(apply(geno1_var[, t14_cols], 1, function(x) sum(x == 1)) 
+  == 1)
+
 low_14_change <- low_14_het - hi_14_hom
-lossOfHet_14 <- which(low_14_change < 0 & low_14_change > -Inf)
+lossOfHet_14 <- setdiff(which(low_14_change < 0 & low_14_change > -Inf), 
+  soloHet_14)
 
 lossOfHet_tot <- union(lossOfHet_13, lossOfHet_14)
 
@@ -602,6 +614,11 @@ stat_list[['N gain-of-het INSs var in 1 tree']] <- length(intersect(
 stat_list[['N gain-of-het INSs > 100bp var in 1 tree']] <- length(intersect(
   intersect(decent_var_SVs, which(geno1_var_type == 'INS')),
   which(geno1_var_size >= 100)))
+
+# save genotypes if there are any "decent" SVs
+if(length(decent_var_SVs) > 0){
+  saveRDS(data.frame(geno1_var)[decent_var_SVs, ], file = good_var_genos_out)
+}
 
 # Write final files
 stat_df <- data.frame(label = names(stat_list), value = unlist(stat_list),

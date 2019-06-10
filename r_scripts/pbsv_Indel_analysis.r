@@ -9,15 +9,20 @@ library(Hmisc)
 args <- commandArgs(trailingOnly = T)
 
 info_file <- args[1]
-info_list <- readRDS(info_file)
+res_info_df <- read.table(info_file, header = F, stringsAsFactors = F, 
+  sep = '\t', row.names = 1)
 
-data_dir <- info_list[['data_dir']]
-vcf_short <- info_list[['vcf_short']]
+combo_1_vcf_file <- trimws(res_info_df['vcf_full', 1])
+
+res_file_parts <- unlist(strsplit(combo_1_vcf_file, split = '/'))
+data_dir <- paste(
+  paste(res_file_parts[-length(res_file_parts)], collapse = '/'), 
+  '/', sep = '')
+vcf_short <- res_file_parts[length(res_file_parts)]
 #data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
 #vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
-combo_1_vcf_file <- paste(data_dir, vcf_short, sep = '')
 
-meta_in <- info_list[['meta_in']]
+meta_in <- trimws(res_info_df['meta_in', 1])
 #meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
@@ -41,18 +46,23 @@ samp_ord_corr_out <- paste(combo_1_vcf_file, '_varSVsampOrderCorr.txt',
 sing_ord_corr_out <- paste(combo_1_vcf_file, '_singletonSampOrderCorr.txt', 
   sep = '')
 
+all_var_genos_out <- paste(combo_1_vcf_file, '_allVarINDEL_genos.rds', sep = '')
+
+good_var_genos_out <- paste(combo_1_vcf_file, '_goodINDEL_genos.rds', sep = '')
+
 # SET VARIABLES
-lib_order <- info_list[['lib_order']]
+lib_order <- trimws(unlist(strsplit(res_info_df['lib_order',1], split = ',')))
 #lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
 #  'PBAU', 'PBAW')
 
-branch_13_lab <- info_list[['branch_13_lab']]
-branch_14_lab <- info_list[['branch_14_lab']]
+branch_14_lab <- as.numeric(
+  trimws(unlist(strsplit(res_info_df['branch_13_lab',1], split = ','))))
+branch_13_lab <- as.numeric(
+  trimws(unlist(strsplit(res_info_df['branch_14_lab',1], split = ','))))
 #branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
 #branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 
 # SET CONSTANTS
-
 
 ############
 # Raw Counts
@@ -73,6 +83,20 @@ for(i in seq(length(raw_type_tab))){
 bnd_ins_equiv <- raw_type_tab[names(raw_type_tab) == 'BND'] / 4
 
 stat_list[['BND count / 4 (possible INS)']] <- bnd_ins_equiv
+
+r_del_inds <- which(type_info == 'DEL')
+r_del_size_ls <- strsplit(raw_vcf[r_del_inds, 8], split = ';')
+tmp_r_del_size <- unlist(lapply(r_del_size_ls, function(x) x[grep('SVLEN', x)]))
+r_del_size <- abs(as.numeric(gsub('SVLEN=', '', tmp_r_del_size)))
+
+stat_list[['Raw DEL > 100bp']] <- sum(r_del_size > 100)
+
+r_ins_inds <- which(type_info == 'INS')
+r_ins_size_ls <- strsplit(raw_vcf[r_ins_inds, 8], split = ';')
+tmp_r_ins_size <- unlist(lapply(r_ins_size_ls, function(x) x[grep('SVLEN', x)]))
+r_ins_size <- abs(as.numeric(gsub('SVLEN=', '', tmp_r_ins_size)))
+
+stat_list[['Raw INS > 100bp']] <- sum(r_ins_size > 100)
 
 # Filtered InDel Analysis
 combo1_vcf <- make_combo_indel_df(combo_1_vcf_file)
@@ -207,6 +231,12 @@ chrom_info_df <- add_chr_tab_info(chr_table = c1_ins_100_chr_tab,
 n_geno_vec <- apply(combo1_genos_2, 1, function(x) length(table(x)))
 
 geno1_var <- combo1_genos_2[which(n_geno_vec > 1), ]
+
+# pineapple
+
+if(length(geno1_var > 0)){
+  saveRDS(geno1_var, file = all_var_genos_out)
+}
 
 stat_list[['Number variable INDELs']] <- nrow(geno1_var)
 # 160
@@ -608,6 +638,11 @@ stat_list[['N gain-of-het INSs var in 1 tree']] <- length(intersect(
 stat_list[['N gain-of-het INSs > 100bp var in 1 tree']] <- length(intersect(
   intersect(decent_var_SVs, which(geno1_var_type == 'INS')),
   which(geno1_var_size >= 100)))
+
+# save genotypes if there are any "decent" SVs
+if(length(decent_var_SVs) > 0){
+  saveRDS(data.frame(geno1_var)[decent_var_SVs, ], file = good_var_genos_out)
+}
 
 # Write final files
 stat_df <- data.frame(label = names(stat_list), value = unlist(stat_list),

@@ -1,0 +1,38 @@
+Loading required package: lattice
+Loading required package: survival
+Loading required package: Formula
+Loading required package: ggplot2
+
+Attaching package: 'Hmisc'
+
+The following objects are masked from 'package:base':
+
+    format.pval, round.POSIXt, trunc.POSIXt, units
+
+Warning messages:
+1: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+2: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+3: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+4: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+5: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+6: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+7: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+8: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+There were 50 or more warnings (use warnings() to see the first 50)
+There were 18 warnings (use warnings() to see them)
+There were 50 or more warnings (use warnings() to see the first 50)
+Warning messages:
+1: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+2: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+3: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+4: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+5: In min(which(x == 1)) : no non-missing arguments to min; returning Inf
+6: In max(union(which(x == 0), which(x == 2))) :
+  no non-missing arguments to max; returning -Inf
+7: In max(union(which(x == 0), which(x == 2))) :
+  no non-missing arguments to max; returning -Inf
+Warning message:
+In FUN(X[[i]], ...) : NAs introduced by coercion
+Warning message:
+In filt_geno_mat(geno_mat = tmp_inv_genotypes, max_nas = 0) :
+  NAs introduced by coercion

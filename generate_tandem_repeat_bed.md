@@ -194,18 +194,4 @@ cat *.bed.tmp > poplar_14_5_v1_tandemrepeat.bed
 ```
 
 
-* next: generate chr name files, repeat name files, and + files for columns\
-to generate the .bed
 
-* need to figure out how to process the output to generate a .bed
-  * I think I want to remove the header and then extract the first few/
-columns using a linux command, then generate some sort of name and score for
-each element, and then convert it into a .bed file
-
-
-
-
-
-  * Figure out how to generate a .bed file from the output of trf
-
-* Chr02 starts on 634531

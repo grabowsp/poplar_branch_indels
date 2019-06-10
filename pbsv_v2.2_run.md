@@ -119,7 +119,7 @@ done
 * using pbmm2 alignment
   * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/PAXL.pbmm2.v2.2.call.r01.sh`
 * using ngmlr alignment
-  * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/qsub PAXL.ngmlr.v2.2.call.r01.sh`
+  * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL/PAXL.ngmlr.v2.2.call.r01.sh`
 * submit scripts
 ```
 cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PAXL
@@ -172,7 +172,21 @@ for SUBFILE in `ls *r03.sh`;
 do qsub $SUBFILE; done
 for SUBFILE in `ls *r04.sh`;
 do qsub $SUBFILE; done
-
 ```
 
+## Call genotypes in only 8 good branches
+### Overview
+* Will use same sample orders as before, but removing the two "bad" branches
+* This will eventually give the most appropriate results
+* Will omit PAZG (13.4) and PAYZ (14.1)
+### Submision scripts
+* example
+  * `/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/full.call.ngmlr.v2.2.call.r01.8branch.sh`
+### Submit
+```
+bash
+cd /home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs
+for SUBFILE in `ls *8branch.sh`;
+do qsub $SUBFILE; done
+```
 

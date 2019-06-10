@@ -1,4 +1,8 @@
 # Analysis comparing genetic distance and ages of branches and nodes
+* Note: I developed this for result that were biased by a sample-order bias \
+in a previous version of pbsv; There were too few variable SVs to do \
+this analyis with the updated results
+
 ## Overview
 ### Goals
 * Model relationship between SVs and age of branches

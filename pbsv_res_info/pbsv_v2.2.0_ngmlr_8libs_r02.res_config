@@ -1,0 +1,44 @@
+# Instructions for making file with information that will be used for
+#     analyzing results from pbsv. 
+#   Will be tab separated
+#   This info can then be read into different programs for analysis
+vcf_full	/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r02.8branch.vcf
+# the full path and filename of the vcf file to be analyzed 
+
+meta_in	/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt
+# the full path and file name of the metadata that has info
+#  about the libraries and samples in the analysis.
+#  Boilerplate includes the most recent metadata file
+
+lib_order	PBAW,PBAU,PBAT,PAZH,PAZF,PAYK,PAXN,PAXL
+# the library names IN THE ORDER THAT THEY ARE INPUTED into the pbsv when 
+#   calling genotypes, names separated by commas
+
+branch_13_lab	13.5,13.3,13.2,13.1
+# a vector of the sample names of the Tree 13 branches
+#   in their order going from base of the tree to the top.
+#   Names should be in numeric form. Boilerplate contains order for all 5 
+#   Tree13 branches
+# ex: 13.4,13.5,13.3,13.2,13.1
+
+branch_14_lab	14.5,14.4,14.3,14.2
+# a vector of the sample names of the Tree 14 branches
+#   in their order going from base of the tree to the top.
+#   Names should be in numeric form. Boilerplate contains
+#   order for all 5 Tree14 branches
+# ex: 14.5, 14.1, 14.4, 14.3, 14.2
+
+### Info for BND analysis ###
+bnd_receiv_dist	200
+# the maximum distance between 5' and 3' locations
+#   of BND entries to be considered as possible
+#   BND-INS; default = 200
+
+insert_max_size	10000000
+#  maximum size of potential INS for a BND-INS to be included
+#    default = 1e7
+
+cipos_cut	200
+# the cutoff for CIPOS (POS confidence interval) for a 
+#   BND-INS to be considered "good"; default = 200
+

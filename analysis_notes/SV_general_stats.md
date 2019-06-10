@@ -1,4 +1,8 @@
 # General Statistics for the Different SV Calling Methods
+* Note: I ended up not following through with this, in part because I \
+couldn't get sniffles to work right, but also because it was going to be \
+too much work and time for too little reward
+
 ## Outline
 1) Number of insertions and deletions with each method
 2) Size distribution of insertions and deletions with each method

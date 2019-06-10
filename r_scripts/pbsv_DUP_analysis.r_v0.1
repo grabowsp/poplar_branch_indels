@@ -11,38 +11,34 @@ source(function_file)
 args <- commandArgs(trailingOnly = T)
 
 info_file <- args[1]
-res_info_df <- read.table(info_file, header = F, stringsAsFactors = F,
-  sep = '\t', row.names = 1)
+info_list <- readRDS(info_file)
 
-combo_1_vcf_file <- trimws(res_info_df['vcf_full', 1])
+data_dir <- info_list[['data_dir']]
+combo_1_vcf_short <- info_list[['vcf_short']]
 
-res_file_parts <- unlist(strsplit(combo_1_vcf_file, split = '/'))
-data_dir <- paste(
-  paste(res_file_parts[-length(res_file_parts)], collapse = '/'),
-  '/', sep = '')
-vcf_short <- res_file_parts[length(res_file_parts)]
-#data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
-#vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
+# data_dir <- '/home/f1p1/tmp/PBSV/Poplar14.5/LIBS/'
+# combo_1_vcf_short <- 'Ptr145v1.ALLData.v2.try1.vcf'
 
-meta_in <- trimws(res_info_df['meta_in', 1])
+combo_1_vcf_file <- paste(data_dir, combo_1_vcf_short, sep = '')
+
+meta_in <- info_list[['meta_in']]
 #meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
 # SET OUTPUT
 # General stats about the BND results
-inv_stat_list <- list()
-inv_stat_list_out <- paste(combo_1_vcf_file, '_INVstats.txt', sep = '')
+dup_stat_list <- list()
+dup_stat_list_out <- paste(combo_1_vcf_file, '_DUPstats.txt', sep = '')
+
+dup_var_geno_out <- paste(combo_1_vcf_file, '_goodDUP_genos.rds', sep = '')
 
 # SET VARIABLES
-lib_order <- trimws(unlist(strsplit(res_info_df['lib_order',1], split = ',')))
+# for now, don't need this info
 #lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
 #  'PBAU', 'PBAW')
 
-branch_14_lab <- as.numeric(
-  trimws(unlist(strsplit(res_info_df['branch_13_lab',1], split = ','))))
-branch_13_lab <- as.numeric(
-  trimws(unlist(strsplit(res_info_df['branch_14_lab',1], split = ','))))
-
+branch_13_lab <- info_list[['branch_13_lab']]
+branch_14_lab <- info_list[['branch_14_lab']]
 #branch_13_lab <- c(13.4, 13.5, 13.3, 13.2, 13.1)
 #branch_14_lab <- c(14.5, 14.1, 14.4, 14.3, 14.2)
 
@@ -59,10 +55,8 @@ type_info <- unlist(lapply(raw_info,
   function(x) unlist(strsplit(x[[1]], split = '='))[2]))
 
 raw_type_tab <- table(type_info)
-#   BND   DEL   INS   INV 
-# 28432 29089 21618    31
 
-inv_stat_list[['Raw INV count']] <- sum(type_info == 'INV')
+dup_stat_list[['Raw DUP count']] <- sum(type_info == 'DUP')
 
 # add column names to VCF and "full_name" that is required for generating
 #   genotypes
@@ -81,45 +75,57 @@ raw_vcf$full_name <- paste(raw_vcf[,1], raw_vcf[,2], sep = '_')
 
 # Find likely INSERTIONS that are represented by BND entries
 
-inv_inds <- which(type_info == 'INV')
+dup_inds <- which(type_info == 'DUP')
 
-inv_end_vec <- as.numeric(gsub('SVTYPE=INV;END=', '', raw_vcf$INFO[inv_inds]))
+dup_size_list <- strsplit(raw_vcf$INFO[dup_inds], split = ';')
+dup_size_vec <- as.numeric(gsub('SVLEN=', '', 
+  unlist(lapply(dup_size_list, function(x) x[[length(x)]]))))
 
-inv_length_vec <- inv_end_vec - raw_vcf$POS[inv_inds]
+dup_size_tab <- summary(dup_size_vec)
 
-raw_inv_size_tab <- summary(inv_length_vec)
-
-for(i in seq(length(raw_inv_size_tab))){
-  inv_stat_list[[paste('raw INV size', 
-    names(raw_inv_size_tab), sep = ' ')[i]]] <- as.vector(raw_inv_size_tab)[i]
+for(i in seq(length(dup_size_tab))){
+  dup_stat_list[[paste('raw DUP size', 
+    names(dup_size_tab), sep = ' ')[i]]] <- as.vector(dup_size_tab)[i]
 }
 
-inv_precall_geno_info <- make_allsamp_geno_info_list(raw_vcf[inv_inds, ])
+dup_precall_geno_info <- make_allsamp_geno_info_list(raw_vcf[dup_inds, ])
 
-tmp_inv_genotypes <- call_allsamp_genotypes(
-  geno_info_list = inv_precall_geno_info, min_sv_coverage = 10,
+tmp_dup_genotypes <- call_allsamp_genotypes(
+  geno_info_list = dup_precall_geno_info, min_sv_coverage = 10,
   het_ratio_cut = 0.25, min_minor_allele_count = 2, max_hom_ratio = 0.05)
 
-rownames(tmp_inv_genotypes) <- paste(raw_vcf$CHROM[inv_inds], 
-  raw_vcf$POS[inv_inds], inv_length_vec, 'INV', sep = '_')
+rownames(tmp_dup_genotypes) <- paste(raw_vcf$CHROM[dup_inds], 
+  raw_vcf$POS[dup_inds], 'DUP', dup_size_vec, sep = '_')
 
-tmp_inv_genos_noNA <- filt_geno_mat(geno_mat = tmp_inv_genotypes, max_nas = 0)
+tmp_dup_genos_noNA <- filt_geno_mat(geno_mat = tmp_dup_genotypes, max_nas = 0)
 
-inv_stat_list[['Number Filtered INV']] <- nrow(tmp_inv_genos_noNA)
+dup_stat_list[['Number Filtered DUP']] <- nrow(tmp_dup_genos_noNA)
 
-n_geno_vec <- apply(tmp_inv_genos_noNA, 1, function(x) length(table(x)))
+filt_dup_size_list <- strsplit(rownames(tmp_dup_genos_noNA), split = '_')
+filt_dup_size_vec <- as.numeric(
+  unlist(lapply(filt_dup_size_list, function(x) x[[length(x)]])))
 
-geno1_var <- tmp_inv_genos_noNA[which(n_geno_vec > 1), ]
+filt_dup_size_tab <- summary(filt_dup_size_vec)
 
-inv_stat_list[['Number variable Filtered INV']] <- nrow(geno1_var)
+for(i in seq(length(filt_dup_size_tab))){
+  dup_stat_list[[paste('Filtered DUP size',
+    names(filt_dup_size_tab), sep = ' ')[i]]] <- as.vector(
+    filt_dup_size_tab)[i]
+}
+
+n_geno_vec <- apply(tmp_dup_genos_noNA, 1, function(x) length(table(x)))
+
+geno1_var <- tmp_dup_genos_noNA[which(n_geno_vec > 1), ]
+
+dup_stat_list[['Number variable Filtered DUP']] <- nrow(geno1_var)
 
 ###################
-# Added stuff below from InDel script to try to get "good" variable INVs
+# Added stuff below from InDel script to try to get "good" variable DUPs
 
 if(nrow(geno1_var) == 0){
-  inv_stat_list[['N variable INVs with loss-of-heterozygosity']] <- 0
-  inv_stat_list[['N variable INVs with gain-of-heterozygosity']] <- 0
-  inv_stat_list[['N "decent" variable INVs']] <- 0
+  dup_stat_list[['N variable DUPs with loss-of-heterozygosity']] <- 0
+  dup_stat_list[['N variable DUPs with gain-of-heterozygosity']] <- 0
+  dup_stat_list[['N "decent" variable DUPs']] <- 0
 } else{
 
 # Find variable DUP inds variable in either or both clones
@@ -169,9 +175,9 @@ lossOfHet_14 <- setdiff(which(low_14_change < 0 & low_14_change > -Inf),
 
 lossOfHet_tot <- union(lossOfHet_13, lossOfHet_14)
 
-inv_stat_list[['N variable INVs with loss-of-heterozygosity']] <- length(
+dup_stat_list[['N variable DUPs with loss-of-heterozygosity']] <- length(
   lossOfHet_tot)
-inv_stat_list[['N variable INVs with gain-of-heterozygosity']] <- nrow(
+dup_stat_list[['N variable DUPs with gain-of-heterozygosity']] <- nrow(
   geno1_var) - length(lossOfHet_tot)
 
 # find SVs that are fixed for 1 in one clone and variable in the other clone
@@ -191,16 +197,26 @@ bad_var_SVs <- union(lossOfHet_tot,
 
 decent_var_SVs <- setdiff(seq(nrow(geno1_var)), bad_var_SVs)
 
-inv_stat_list[['N "decent" variable INVs']] <- length(decent_var_SVs)
+decent_names <- rownames(geno1_var)[decent_var_SVs]
+d_name_split <- strsplit(decent_names, split = '_')
+decent_sizes <- as.numeric(unlist(
+  lapply(d_name_split, function(x) x[length(x)])))
+
+dup_stat_list[['N "decent" variable DUPs']] <- length(decent_var_SVs)
+dup_stat_list[['N "decent" DUPs > 100bp']] <- sum(decent_sizes > 100)
+
+if(length(decent_var_SVs) > 0){
+  saveRDS(data.frame(geno1_var)[decent_var_SVs, ], file = dup_var_geno_out)
+}
 
 }
 ########
 
-inv_stat_df <- data.frame(label = names(inv_stat_list), 
-  value = unlist(inv_stat_list),
+dup_stat_df <- data.frame(label = names(dup_stat_list), 
+  value = unlist(dup_stat_list),
   stringsAsFactors = F)
 
-write.table(inv_stat_df, file = inv_stat_list_out, quote = F, sep = '\t',
+write.table(dup_stat_df, file = dup_stat_list_out, quote = F, sep = '\t',
   row.names = F, col.names = T)
 
 quit(save = 'no')

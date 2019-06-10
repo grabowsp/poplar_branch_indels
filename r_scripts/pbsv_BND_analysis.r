@@ -11,17 +11,20 @@ source(function_file)
 args <- commandArgs(trailingOnly = T)
 
 info_file <- args[1]
-info_list <- readRDS(info_file)
+res_info_df <- read.table(info_file, header = F, stringsAsFactors = F,
+  sep = '\t', row.names = 1)
 
-data_dir <- info_list[['data_dir']]
-combo_1_vcf_short <- info_list[['vcf_short']]
+combo_1_vcf_file <- trimws(res_info_df['vcf_full', 1])
 
-# data_dir <- '/home/f1p1/tmp/PBSV/Poplar14.5/LIBS/'
-# combo_1_vcf_short <- 'Ptr145v1.ALLData.v2.try1.vcf'
+res_file_parts <- unlist(strsplit(combo_1_vcf_file, split = '/'))
+data_dir <- paste(
+  paste(res_file_parts[-length(res_file_parts)], collapse = '/'),
+  '/', sep = '')
+vcf_short <- res_file_parts[length(res_file_parts)]
+#data_dir <- '/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/'
+#vcf_short <- 'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r01.vcf'
 
-combo_1_vcf_file <- paste(data_dir, combo_1_vcf_short, sep = '')
-
-meta_in <- info_list[['meta_in']]
+meta_in <- trimws(res_info_df['meta_in', 1])
 #meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
 samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 
@@ -33,12 +36,12 @@ bnd_stat_list_out <- paste(combo_1_vcf_file, '_BNDstats.txt', sep = '')
 # SET VARIABLES
 # Maximum distance allowed between the 5' and 3' locations of the receiving
 #  portion of the potential INS
-bnd_receiv_dist <- info_list[['bnd_receiv_dist']]
+bnd_receiv_dist <- as.numeric(trimws(res_info_df['bnd_receiv_dist', 1]))
 # Maximum size of potential INS to be included
-insert_max_size <- info_list[['insert_max_size']]
+insert_max_size <- as.numeric(trimws(res_info_df['insert_max_size', 1]))
 
 # cutoff for CIPOS length for BND-INS to be considered "good"
-cipos_cut <- info_list[['cipos_cut']]
+cipos_cut <- as.numeric(trimws(res_info_df['cipos_cut', 1]))
 
 # for now, don't need this info
 #lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
