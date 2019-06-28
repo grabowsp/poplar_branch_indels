@@ -33,6 +33,9 @@ samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 inv_stat_list <- list()
 inv_stat_list_out <- paste(combo_1_vcf_file, '_INVstats.txt', sep = '')
 
+filt_inv_names_out <- paste(combo_1_vcf_file, '_filtered_INV_names.rds',
+  sep = '')
+
 # SET VARIABLES
 lib_order <- trimws(unlist(strsplit(res_info_df['lib_order',1], split = ',')))
 #lib_order <- c('PAXL', 'PAXN', 'PAYK', 'PAYZ', 'PAZF', 'PAZG', 'PAZH', 'PBAT',
@@ -105,7 +108,19 @@ rownames(tmp_inv_genotypes) <- paste(raw_vcf$CHROM[inv_inds],
 
 tmp_inv_genos_noNA <- filt_geno_mat(geno_mat = tmp_inv_genotypes, max_nas = 0)
 
+filt_inv_names <- rownames(tmp_inv_genos_noNA)
+
 inv_stat_list[['Number Filtered INV']] <- nrow(tmp_inv_genos_noNA)
+
+filt_size_vec <- as.numeric(unlist(lapply(
+  strsplit(rownames(tmp_inv_genos_noNA), split = '_'), function(x) x[[3]])))
+
+inv_stat_list[['N Filtered INV > 100bp']] <- sum(filt_size_vec > 100)
+inv_stat_list[['N Filtered INV > 1kbp']] <- sum(filt_size_vec > 1000)
+inv_stat_list[['N Filtered INV > 5kbp']] <- sum(filt_size_vec > 5000)
+inv_stat_list[['N Filtered INV > 10kbp']] <- sum(filt_size_vec > 10000)
+inv_stat_list[['N Filtered INV > 25kbp']] <- sum(filt_size_vec > 25000)
+inv_stat_list[['N Filtered INV > 50kbp']] <- sum(filt_size_vec > 50000)
 
 n_geno_vec <- apply(tmp_inv_genos_noNA, 1, function(x) length(table(x)))
 
@@ -202,6 +217,8 @@ inv_stat_df <- data.frame(label = names(inv_stat_list),
 
 write.table(inv_stat_df, file = inv_stat_list_out, quote = F, sep = '\t',
   row.names = F, col.names = T)
+
+saveRDS(filt_inv_names, file = filt_inv_names_out)
 
 quit(save = 'no')
 

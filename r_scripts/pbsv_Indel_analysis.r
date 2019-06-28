@@ -46,6 +46,9 @@ samp_ord_corr_out <- paste(combo_1_vcf_file, '_varSVsampOrderCorr.txt',
 sing_ord_corr_out <- paste(combo_1_vcf_file, '_singletonSampOrderCorr.txt', 
   sep = '')
 
+filt_indel_names_out <- paste(combo_1_vcf_file, '_filtered_INDEL_names.rds',
+  sep = '')
+
 all_var_genos_out <- paste(combo_1_vcf_file, '_allVarINDEL_genos.rds', sep = '')
 
 good_var_genos_out <- paste(combo_1_vcf_file, '_goodINDEL_genos.rds', sep = '')
@@ -135,6 +138,7 @@ combo1_genos_2 <- combo1_genos_noNA[-scaf_inds, ]
 combo1_genos_info <- strsplit(rownames(combo1_genos_2), split = '_')
 combo1_genos_type <- unlist(lapply(combo1_genos_info, function(x) x[[3]]))
 
+filt_indel_names <- rownames(combo1_genos_2)
 # table(combo1_genos_type)
 #  DEL  INS 
 # 7647 4996 
@@ -203,6 +207,44 @@ stat_list[['Number DELs > 100bp']] <- length(
 stat_list[['Number INSs > 100bp']] <- length(
   intersect(combo1_g2_100bp_inds, combo1_g2_ins_inds))
 # [1] 2593
+
+combo1_g2_1kbp_inds <- which(combo1_genos_size >= 1000)
+combo1_g2_5kbp_inds <- which(combo1_genos_size >= 5000)
+combo1_g2_10kbp_inds <- which(combo1_genos_size >= 10000)
+combo1_g2_25kbp_inds <- which(combo1_genos_size >= 25000)
+combo1_g2_50kbp_inds <- which(combo1_genos_size >= 50000)
+
+stat_list[['Number DELs > 1kbp']] <- length(
+  intersect(combo1_g2_1kbp_inds, combo1_g2_del_inds))
+
+stat_list[['Number INSs > 1kbp']] <- length(
+  intersect(combo1_g2_1kbp_inds, combo1_g2_ins_inds))
+#
+stat_list[['Number DELs > 5kbp']] <- length(
+  intersect(combo1_g2_5kbp_inds, combo1_g2_del_inds))
+
+stat_list[['Number INSs > 5kbp']] <- length(
+  intersect(combo1_g2_5kbp_inds, combo1_g2_ins_inds))
+#
+stat_list[['Number DELs > 10kbp']] <- length(
+  intersect(combo1_g2_10kbp_inds, combo1_g2_del_inds))
+
+stat_list[['Number INSs > 10kbp']] <- length(
+  intersect(combo1_g2_10kbp_inds, combo1_g2_ins_inds))
+#
+stat_list[['Number DELs > 25kbp']] <- length(
+  intersect(combo1_g2_25kbp_inds, combo1_g2_del_inds))
+
+stat_list[['Number INSs > 25kbp']] <- length(
+  intersect(combo1_g2_25kbp_inds, combo1_g2_ins_inds))
+#
+stat_list[['Number DELs > 50kbp']] <- length(
+  intersect(combo1_g2_50kbp_inds, combo1_g2_del_inds))
+
+stat_list[['Number INSs > 50kbp']] <- length(
+  intersect(combo1_g2_50kbp_inds, combo1_g2_ins_inds))
+
+#
 
 c1_del_100_chr_tab <- table(
   combo1_genos_chr[intersect(combo1_g2_100bp_inds, combo1_g2_del_inds)])
@@ -662,6 +704,8 @@ write.table(samp_sing_df, file = samp_sing_out, quote = F, sep = '\t',
 
 write.table(sing_ord_df, file = sing_ord_corr_out, quote = F, sep = '\t',
   row.names = F, col.names = T)
+
+saveRDS(filt_indel_names, file = filt_indel_names_out)
 
 quit(save = 'no')
 

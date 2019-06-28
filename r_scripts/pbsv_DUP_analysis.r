@@ -33,6 +33,9 @@ samp_meta <- read.table(meta_in, header = T, stringsAsFactors = F, sep = '\t')
 dup_stat_list <- list()
 dup_stat_list_out <- paste(combo_1_vcf_file, '_DUPstats.txt', sep = '')
 
+filt_dup_names_out <- paste(combo_1_vcf_file, '_filtered_DUP_names.rds',
+  sep = '')
+
 dup_allvar_out <- paste(combo_1_vcf_file, '_allVarDUP_genos.rds', sep = '')
 
 dup_var_geno_out <- paste(combo_1_vcf_file, '_goodDUP_genos.rds', sep = '')
@@ -119,7 +122,14 @@ filt_dup_size_list <- strsplit(rownames(tmp_dup_genos_noNA), split = '_')
 filt_dup_size_vec <- as.numeric(
   unlist(lapply(filt_dup_size_list, function(x) x[[length(x)]])))
 
+filt_dup_names <- rownames(tmp_dup_genos_noNA)
+
 dup_stat_list[['Number Filtered DUP > 100bp']] <- sum(filt_dup_size_vec > 100)
+dup_stat_list[['Number Filtered DUP > 1kbp']] <- sum(filt_dup_size_vec > 1000)
+dup_stat_list[['Number Filtered DUP > 5kbp']] <- sum(filt_dup_size_vec > 5000)
+dup_stat_list[['Number Filtered DUP > 10kbp']] <- sum(filt_dup_size_vec > 10000)
+dup_stat_list[['Number Filtered DUP > 25kbp']] <- sum(filt_dup_size_vec > 25000)
+dup_stat_list[['Number Filtered DUP > 50kbp']] <- sum(filt_dup_size_vec > 50000)
 
 filt_dup_size_tab <- summary(filt_dup_size_vec)
 
@@ -239,6 +249,8 @@ dup_stat_df <- data.frame(label = names(dup_stat_list),
 
 write.table(dup_stat_df, file = dup_stat_list_out, quote = F, sep = '\t',
   row.names = F, col.names = T)
+
+saveRDS(filt_dup_names, file = filt_dup_names_out)
 
 quit(save = 'no')
 
