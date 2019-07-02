@@ -163,7 +163,6 @@ cds_window_100k <- calc_genomewide_perc(annot_df = cds_annot,
 cds_window_10k <- calc_genomewide_perc(annot_df = cds_annot,
   window_size = 10000, loud = T)
 
-
 cds_window_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
   'poplar_cds_window_calcs.rda', sep = '/')
 
@@ -208,11 +207,6 @@ saveRDS(dup_tr_calcs, file = dup_tr_calc_out)
 ##########
 # Generate genic sequence boxplot for SVs
 
-window_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
-  'poplare_genic_window_calcs.rda', sep = '/')
-
-load(window_calc_out)
-
 indel_genic_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
   'poplar_indel_per_genic_seq.rds', sep = '/')
 
@@ -252,10 +246,47 @@ sv_perc_genic_df$size_class[inds_20] <- '20bp-1kbp'
 sv_perc_genic_df$tot_class <- paste(sv_perc_genic_df$type, 
   sv_perc_genic_df$size_class, sep = ' ')
 
+# add tandem repeat and CDS info
+indel_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_tr_seq.rds', sep = '/')
+
+indel_tr_calcs <- readRDS(indel_tr_calc_out)
+
+dup_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_tr_seq.rds', sep = '/')
+
+dup_tr_calcs <- readRDS(dup_tr_calc_out)
+
+sv_tr_calcs <- c(indel_tr_calcs, dup_tr_calcs)
+
+sv_perc_genic_df$perc_tr <- sv_tr_calcs
+
+indel_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_cds_seq.rds', sep = '/')
+
+indel_cds_calcs <- readRDS(indel_cds_calc_out)
+
+dup_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_cds_seq.rds', sep = '/')
+
+dup_cds_calcs <- readRDS(dup_cds_calc_out)
+
+sv_cds_calcs <- c(indel_cds_calcs, dup_cds_calcs)
+
+sv_perc_genic_df$perc_cds <- sv_cds_calcs
+
 # remove insertion indices because info I have doesn't actually look at
 #  insertions
 ins_inds <- which(sv_perc_genic_df$type == 'INS')
 sv_perc_genic_df_2 <- sv_perc_genic_df[-ins_inds, ]
+
+########
+# generate window dataframe
+
+window_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplare_genic_window_calcs.rda', sep = '/')
+
+load(window_calc_out)
 
 window_10k_vals <- unlist(genic_window_10k)
 
@@ -264,14 +295,37 @@ window_calc_df <- data.frame(
   perc_genic = window_10k_vals, type = '10k window', size = NA, 
   size_class = NA, tot_class = '10k windows', stringsAsFactors = F)
 
+tr_window_file_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_tr_window_calcs.rda', sep = '/')
+load(tr_window_file_out)
+
+window_calc_df$perc_tr <- sample(unlist(tr_window_10k), nrow(window_calc_df))
+
+cds_window_file_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_cds_window_calcs.rda', sep = '/')
+
+load(cds_window_file_out)
+
+window_calc_df$perc_cds <- unlist(cds_window_10k)
+
+# combine SV and window data.frames
+
 all_perc_genic_df <- rbind(sv_perc_genic_df_2, window_calc_df)
 
-tot_class_levels <- unique(all_perc_genic_df$tot_class)[
+all_perc_genic_df$tot_class_2 <- NA
+for(tc in unique(all_perc_genic_df$tot_class)){
+  tc_inds <- which(all_perc_genic_df$tot_class == tc)
+  tmp_num <- length(tc_inds)
+  add_text <- paste('(n= ', tmp_num, ')', sep = '')
+  new_text <- paste(tc, add_text, sep = ' ')
+  all_perc_genic_df$tot_class_2[tc_inds] <- new_text
+}
+
+tot_class_levels <- unique(all_perc_genic_df$tot_class_2)[
   c(9,4,8,3,7,2,6,1,5)]
 
-all_perc_genic_df$tot_class <- as.factor(all_perc_genic_df$tot_class)
-
-levels(all_perc_genic_df$tot_class) <- tot_class_levels
+all_perc_genic_df$tot_class_2 <- factor(all_perc_genic_df$tot_class_2,
+  levels = tot_class_levels)
 
 bp_colors <- rep(NA, times = length(tot_class_levels))
 bp_colors[grep('window', tot_class_levels)] <- 'gray70'
@@ -280,7 +334,7 @@ bp_colors[grep('DUP', tot_class_levels)] <- 'green2'
 # bp_colors[grep('INS', tot_class_levels)] <- 'blue2'
 
 all_boxplot_p <- ggplot(all_perc_genic_df,
-  aes(x = tot_class, y = perc_genic)) +
+  aes(x = tot_class_2, y = perc_genic)) +
   geom_boxplot(fill = bp_colors) +
 #  scale_fill_manual(values = bp_colors) +
   stat_summary(fun.y=mean, geom='point', shape = 23, size=4,
@@ -297,90 +351,14 @@ pdf(file = all_boxplot_out)
 all_boxplot_p
 dev.off()
 
-
-# windows = gray
-# DEL = red
-# DUP = green
-# INS = blue
-
-###################
-# Generate tandem repeat content boxplot for SVs
-
-tr_window_file_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
-  'poplar_tr_window_calcs.rda', sep = '/')
-
-load(tr_window_file_out)
-
-indel_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
-  'poplar_indel_per_tr_seq.rds', sep = '/')
-
-indel_tr_calcs <- readRDS(indel_tr_calc_out)
-
-dup_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
-  'poplar_duplicate_per_tr_seq.rds', sep = '/')
-
-dup_tr_calcs <- readRDS(dup_tr_calc_out)
-
-sv_tr_calcs <- c(indel_tr_calcs, dup_tr_calcs)
-
-sv_tr_name_info <- strsplit(names(sv_tr_calcs), split = '_')
-sv_tr_type_vec <- unlist(lapply(sv_tr_name_info, function(x) x[3]))
-sv_tr_size_vec <- as.numeric(unlist(lapply(sv_tr_name_info, function(x) x[4])))
-
-tr_inds_50k <- which(sv_tr_size_vec > 50000)
-tr_inds_10k <- setdiff(which(sv_tr_size_vec > 10000), tr_inds_50k)
-tr_inds_1k <- setdiff(which(sv_tr_size_vec > 1000), c(tr_inds_50k, tr_inds_10k))
-tr_inds_20 <- setdiff(which(sv_tr_size_vec >= 20), 
-  c(tr_inds_50k, tr_inds_10k, tr_inds_1k))
-
-sv_perc_tr_df <- data.frame(name = names(sv_tr_calcs),
-  perc_genic = sv_tr_calcs, type = NA, size = NA, size_class = NA,
-  tot_class = NA, stringsAsFactors = F)
-
-sv_perc_tr_df$type <- sv_tr_type_vec
-sv_perc_tr_df$size <- sv_tr_size_vec
-
-sv_perc_tr_df$size_class[tr_inds_50k] <- '>50kbp'
-sv_perc_tr_df$size_class[tr_inds_10k] <- '10kbp-50kbp'
-sv_perc_tr_df$size_class[tr_inds_1k] <- '1kbp-10kbp'
-sv_perc_tr_df$size_class[tr_inds_20] <- '20bp-1kbp'
-
-sv_perc_tr_df$tot_class <- paste(sv_perc_tr_df$type,
-  sv_perc_tr_df$size_class, sep = ' ')
-
-# remove insertion indices because info I have doesn't actually look at
-#  insertions
-tr_ins_inds <- which(sv_perc_tr_df$type == 'INS')
-sv_perc_tr_df_2 <- sv_perc_tr_df[-tr_ins_inds, ]
-
-tr_window_10k_vals <- unlist(tr_window_10k)
-
-tr_window_calc_df <- data.frame(
-  name = paste('window', seq(length(tr_window_10k_vals)), sep = '_'),
-  perc_genic = tr_window_10k_vals, type = '10k window', size = NA,
-  size_class = NA, tot_class = '10k windows', stringsAsFactors = F)
-
-all_perc_tr_df <- rbind(sv_perc_tr_df_2, tr_window_calc_df)
-
-tr_tot_class_levels <- unique(all_perc_tr_df$tot_class)[
-  c(9,4,8,3,7,2,6,1,5)]
-
-all_perc_tr_df$tot_class <- as.factor(all_perc_tr_df$tot_class)
-
-levels(all_perc_tr_df$tot_class) <- tr_tot_class_levels
-
-tr_bp_colors <- rep(NA, times = length(tr_tot_class_levels))
-tr_bp_colors[grep('window', tr_tot_class_levels)] <- 'gray70'
-tr_bp_colors[grep('DEL', tr_tot_class_levels)] <- 'red2'
-tr_bp_colors[grep('DUP', tr_tot_class_levels)] <- 'green2'
-# tr_bp_colors[grep('INS', tr_tot_class_levels)] <- 'blue2'
-
-tr_boxplot_p <- ggplot(all_perc_tr_df,
-  aes(x = tot_class, y = perc_genic)) +
-  geom_boxplot(fill = tr_bp_colors) +
+##########
+# tandem repeat boxplot
+tr_boxplot_p <- ggplot(all_perc_genic_df,
+  aes(x = tot_class_2, y = perc_tr)) +
+  geom_boxplot(fill = bp_colors) +
 #  scale_fill_manual(values = bp_colors) +
   stat_summary(fun.y=mean, geom='point', shape = 23, size=4,
-    position = position_dodge(0.9), fill = tr_bp_colors) +
+    position = position_dodge(0.9), fill = bp_colors) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   ylab('Percent tandem repeat sequence') +
   xlab('SV type and size class') +
@@ -392,6 +370,34 @@ tr_boxplot_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
 pdf(file = tr_boxplot_out)
 tr_boxplot_p
 dev.off()
+
+##########
+# CDS Boxplot
+
+cds_boxplot_p <- ggplot(all_perc_genic_df,
+  aes(x = tot_class_2, y = perc_cds)) +
+  geom_boxplot(fill = bp_colors) +
+#  scale_fill_manual(values = bp_colors) +
+  stat_summary(fun.y=mean, geom='point', shape = 23, size=4,
+    position = position_dodge(0.9), fill = bp_colors) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylab('Percent coding sequence') +
+  xlab('SV type and size class') +
+  ggtitle('Percent coding sequence within SVs of different sizes')
+
+cds_boxplot_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_SV_Percent_CDS_boxplot_with_windows.pdf', sep = '/')
+
+pdf(file = cds_boxplot_out)
+cds_boxplot_p
+dev.off()
+
+
+# windows = gray
+# DEL = red
+# DUP = green
+# INS = blue
+
 
 ###############
 # Randomly select SVs for manual inspection
@@ -489,9 +495,100 @@ table(paste(man_check_res$type, man_check_res$size_class,
 #                     1                     10                     10
 
 
+##################
+# Test differences in mean and distributions of genic, cds, and tr for SVs
+#   vs windows
 
+window_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplare_genic_window_calcs.rda', sep = '/')
 
+load(window_calc_out)
 
+genic_window_10k_vals <- unlist(genic_window_10k)
+
+indel_genic_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_genic_seq.rds', sep = '/')
+
+all_indel_calcs <- readRDS(indel_genic_calc_out)
+
+dup_genic_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_genic_seq.rds', sep = '/')
+
+all_dup_calcs <- readRDS(dup_genic_calc_out)
+
+sv_genic_calcs <- c(all_indel_calcs, all_dup_calcs)
+
+ks.test(x = sv_genic_calcs[grep('DEL', names(sv_genic_calcs))], 
+  y = genic_window_10k_vals, alternative = 'less')
+# D^- = 0.13608, p-value < 2.2e-16
+# alternative hypothesis: the CDF of x lies below that of y
+
+ks.test(x = sv_genic_calcs[grep('DEL', names(sv_genic_calcs))],
+  y = genic_window_10k_vals, alternative = 'less')
+# D^- = 0.20273, p-value < 2.2e-16
+# alternative hypothesis: the CDF of x lies below that of y
+
+#############
+
+tr_window_file_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_tr_window_calcs.rda', sep = '/')
+
+load(tr_window_file_out)
+
+tr_window_10k_vals <- unlist(tr_window_10k)
+
+indel_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_tr_seq.rds', sep = '/')
+
+indel_tr_calcs <- readRDS(indel_tr_calc_out)
+
+dup_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_tr_seq.rds', sep = '/')
+
+dup_tr_calcs <- readRDS(dup_tr_calc_out)
+
+sv_tr_calcs <- c(indel_tr_calcs, dup_tr_calcs)
+
+ks.test(x = sv_tr_calcs[grep('DEL', names(sv_tr_calcs))],
+  y = tr_window_10k_vals, alternative = 'greater')
+# D^+ = 0.58139, p-value < 2.2e-16
+# alternative hypothesis: the CDF of x lies above that of y
+
+ks.test(x = sv_tr_calcs[grep('DUP', names(sv_tr_calcs))],
+  y = tr_window_10k_vals, alternative = 'greater')
+# D^+ = 0.71785, p-value < 2.2e-16
+# alternative hypothesis: the CDF of x lies above that of y
+
+##############3
+
+cds_window_file_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_cds_window_calcs.rda', sep = '/')
+
+load(cds_window_file_out)
+
+cds_window_10k_vals <- unlist(cds_window_10k)
+
+indel_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_cds_seq.rds', sep = '/')
+
+indel_cds_calcs <- readRDS(indel_cds_calc_out)
+
+dup_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_cds_seq.rds', sep = '/')
+
+dup_cds_calcs <- readRDS(dup_cds_calc_out)
+
+sv_cds_calcs <- c(indel_cds_calcs, dup_cds_calcs)
+
+ks.test(x = sv_cds_calcs[grep('DEL', names(sv_cds_calcs))],
+  y = cds_window_10k_vals, alternative = 'less')
+# D^- = 0.011553, p-value = 0.1109
+# alternative hypothesis: the CDF of x lies below that of y
+
+ks.test(x = sv_cds_calcs[grep('DUP', names(sv_cds_calcs))],
+  y = cds_window_10k_vals, alternative = 'less')
+#D^- = 0.019, p-value = 0.6391
+#alternative hypothesis: the CDF of x lies below that of y
 
 
 
