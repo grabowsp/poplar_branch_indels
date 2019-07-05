@@ -398,6 +398,120 @@ dev.off()
 # DUP = green
 # INS = blue
 
+######
+# Test for linear relationship between % genic, tandem repeat, or coding seq
+#   and SV size
+
+indel_genic_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_genic_seq.rds', sep = '/')
+
+all_indel_calcs <- readRDS(indel_genic_calc_out)
+
+dup_genic_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_genic_seq.rds', sep = '/')
+
+all_dup_calcs <- readRDS(dup_genic_calc_out)
+
+sv_genic_calcs <- c(all_indel_calcs, all_dup_calcs)
+
+sv_name_info <- strsplit(names(sv_genic_calcs), split = '_')
+sv_type_vec <- unlist(lapply(sv_name_info, function(x) x[3]))
+sv_size_vec <- as.numeric(unlist(lapply(sv_name_info, function(x) x[4])))
+
+sv_perc_genic_df <- data.frame(name = names(sv_genic_calcs),
+  perc_genic = sv_genic_calcs, type = NA, size = NA,
+  stringsAsFactors = F)
+
+sv_perc_genic_df$type <- sv_type_vec
+sv_perc_genic_df$size <- sv_size_vec
+
+indel_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_tr_seq.rds', sep = '/')
+
+indel_tr_calcs <- readRDS(indel_tr_calc_out)
+
+dup_tr_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_tr_seq.rds', sep = '/')
+
+dup_tr_calcs <- readRDS(dup_tr_calc_out)
+
+sv_tr_calcs <- c(indel_tr_calcs, dup_tr_calcs)
+
+sv_perc_genic_df$perc_tr <- sv_tr_calcs
+
+indel_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_indel_per_cds_seq.rds', sep = '/')
+
+indel_cds_calcs <- readRDS(indel_cds_calc_out)
+
+dup_cds_calc_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+  'poplar_duplicate_per_cds_seq.rds', sep = '/')
+
+dup_cds_calcs <- readRDS(dup_cds_calc_out)
+
+sv_cds_calcs <- c(indel_cds_calcs, dup_cds_calcs)
+
+sv_perc_genic_df$perc_cds <- sv_cds_calcs
+
+# remove insertion indices because info I have doesn't actually look at
+#  insertions
+ins_inds <- which(sv_perc_genic_df$type == 'INS')
+sv_perc_genic_df_2 <- sv_perc_genic_df[-ins_inds, ]
+
+del_df <- sv_perc_genic_df_2[which(sv_perc_genic_df_2$type == 'DEL'), ]
+dup_df <- sv_perc_genic_df_2[which(sv_perc_genic_df_2$type == 'DUP'), ]
+
+genic_v_size_del <- lm(del_df$perc_genic ~ log(del_df$size))
+summary(genic_v_size_del)
+#               Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)       0.251572   0.012072  20.840  < 2e-16 ***
+# log(del_df$size) -0.019643   0.002482  -7.914 2.74e-15 ***
+# Residual standard error: 0.3613 on 10431 degrees of freedom
+# Multiple R-squared:  0.005969,	Adjusted R-squared:  0.005873 
+# F-statistic: 62.63 on 1 and 10431 DF,  p-value: 2.742e-15
+#### Significant
+
+genic_v_size_dup <- lm(dup_df$perc_genic ~ log(dup_df$size))
+summary(genic_v_size_dup)
+#              Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)       0.301510   0.050401   5.982  3.7e-09 ***
+# log(dup_df$size) -0.008192   0.009216  -0.889    0.374
+#### Not significant
+
+tr_v_size_del <- lm(del_df$perc_tr ~ log(del_df$size))
+summary(tr_v_size_del)
+#               Estimate Std. Error t value Pr(>|t|)    
+#                  Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)       0.40444    0.01274   31.74   <2e-16 ***
+# log(del_df$size) -0.04045    0.00262  -15.44   <2e-16 ***
+# Residual standard error: 0.3814 on 10431 degrees of freedom
+# Multiple R-squared:  0.02234,	Adjusted R-squared:  0.02225 
+# F-statistic: 238.3 on 1 and 10431 DF,  p-value: < 2.2e-16
+#### Significant
+
+tr_v_size_dup <- lm(dup_df$perc_tr ~ log(dup_df$size))
+summary(tr_v_size_dup)
+#               Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)       0.079006   0.021927   3.603 0.000339 ***
+# log(dup_df$size) -0.005984   0.004009  -1.493 0.136068
+#### Not significant
+
+cds_v_size_del <- lm(del_df$perc_cds ~ log(del_df$size))
+summary(cds_v_size_del)
+#             Estimate Std. Error t value Pr(>|t|)
+# (Intercept)       0.0164225  0.0036624   4.484  7.4e-06 ***
+# log(del_df$size) -0.0004056  0.0007530  -0.539     0.59 
+#### Not significant
+
+cds_v_size_dup <- lm(dup_df$perc_cds ~ log(dup_df$size))
+summary(cds_v_size_dup)
+#              Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)      -0.032773   0.016212  -2.021   0.0437 *  
+# log(dup_df$size)  0.012684   0.002964   4.279 2.17e-05 ***
+# Residual standard error: 0.1339 on 628 degrees of freedom
+# Multiple R-squared:  0.02833,	Adjusted R-squared:  0.02678 
+# F-statistic: 18.31 on 1 and 628 DF,  p-value: 2.173e-05
+### Significant, but in a weird way - I didn't expect a positive relationship
 
 ###############
 # Randomly select SVs for manual inspection
@@ -593,180 +707,5 @@ ks.test(x = sv_cds_calcs[grep('DUP', names(sv_cds_calcs))],
 
 
 
-
-
-
-########################
-# test using Chr01_42000270_DEL_95595
-test_sv <- 'Chr01_42000270_DEL_95595'
-tmp_chr_name <- 'Chr01'
-tmp_sv_start <- 42000270
-tmp_sv_length <- 95595
-
-tmp_gene_inds <- gene_in_SV(annot_df = gene_annot, chr_name = tmp_chr_name, 
-  sv_start = tmp_sv_start, sv_length = tmp_sv_length)
-
-tmp_5_ind <- gene_5overlap_SV(annot_df = gene_annot, chr_name = tmp_chr_name, 
-  sv_start = tmp_sv_start)
-
-tmp_3_ind <- gene_3overlap_SV(annot_df = gene_annot, chr_name = tmp_chr_name, 
-  sv_start = tmp_sv_start, sv_length = tmp_sv_length)
-
-tmp_tot_inds <- sort(c(tmp_gene_inds, tmp_5_ind, tmp_3_ind))
-
-tmp_tot_unique_seq <- get_unique_code_seq(annot_df =  gene_annot, 
-  target_inds = tmp_tot_inds)
-
-tmp_perc_code <- get_perc_code_seq(sv_start = tmp_sv_start, 
-  sv_length = tmp_sv_length, unique_code_seq = tmp_tot_unique_seq)
-
-tmp_perc_code_2 <- calc_sv_perc_code(sv_name = test_sv, annot_df = gene_annot)
-
-test_big_names <- all_indel_df_list[[1]]$name[big_indel_inds]
-
-test_calcs <- sapply(test_big_names, calc_sv_perc_code, annot_df = gene_annot)
-
-all_indel_calcs <- sapply(all_indel_df_list[[1]]$name, calc_sv_perc_code, 
-  annot_df = gene_annot)
-
-#######
-
-test_window_df <- gen_window_inds(max_pos = 50697692, window_size = 10000)
-
-test_window_perc <- apply(test_window_df, 1, function(x) 
-  calc_window_perc_code(annot_df = gene_annot, chr_name = 'Chr01', 
-  start_pos = x[1], end_pos = x[2]))
-
-test_win_perc_2 <- c()
-for(i in seq(nrow(test_window_df))){
-  tmp_val <- calc_window_perc_code(annot_df = gene_annot, chr_name = 'Chr01', 
-    start_pos = test_window_df[i,1], end_pos = test_window_df[i,2])
-  test_win_perc_2 <- c(test_win_perc_2, tmp_val)
-}
-
-test_window_df_2 <- gen_window_inds(max_pos = 50697692, window_size = 50000)
-test2_win_perc <- apply(test_window_df_2, 1, function(x) 
-  calc_window_perc_code(annot_df = gene_annot, chr_name = 'Chr01', 
-  start_pos = x[1], end_pos = x[2]))
-
-#####
-
-test_vcf <- all_indel_df_list[[1]]
-chr_names <- unique(test_vcf$chr)
-
-wind_50k_genic_list <- list()
-
-for(pchr in chr_names){
-  print(pchr)
-  chr_inds <- which(gene_annot[,1] == pchr)
-  tmp_max_pos <- max(gene_annot[chr_inds, 5])
-  tmp_window_df <- gen_window_inds(max_pos = tmp_max_pos, window_size = 50000)
-  tmp_wind_perc <- apply(tmp_window_df, 1, function(x)
-    calc_window_perc_code(annot_df = gene_annot, chr_name = pchr,
-      start_pos = x[1], end_pos = x[2]))
-  wind_50k_genic_list[[pchr]] <- tmp_wind_perc
-}
-
-test_50k <- calc_genomewide_perc(annot_df = gene_annot, window_size = 50000, 
-  loud = T)
-##
-
-
-
-#########
-# old stuff, prob just discard...
-
-all_indel_geno_list <- list()
-for(i in seq(4)){
-  tmp_name <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs/',
-    'PtStettler14.ngmlr.ppsv_v2.2_1.full.call.r0', i,
-    '.8branch.vcf_allVarINDEL_genos.rds', sep = '')
-  all_indel_geno_list[[i]] <- readRDS(tmp_name)
-}
-
-all_indel_name_tab <- table(unlist(
-  lapply(all_indel_geno_list, function(x) rownames(x))))
-
-indel_overlap <- names(all_indel_name_tab)[which(all_indel_name_tab == 4)]
-
-###
-
-test_name_vec <- setdiff(
-  unlist(lapply(all_indel_geno_list, function(x) rownames(x))), indel_overlap)
-name_split_list <- strsplit(test_name_vec, split = '_')
-test_chr_vec <- unlist(lapply(name_split_list, function(x) x[1]))
-test_pos_vec <- as.numeric(unlist(lapply(name_split_list, function(x) x[2])))
-test_type_vec <- unlist(lapply(name_split_list, function(x) x[3]))
-test_size_vec <- as.numeric(unlist(lapply(name_split_list, function(x) x[4])))
-
-test_SV_df <- data.frame(name = test_name_vec, chr = test_chr_vec, 
-  pos = test_pos_vec, type = test_type_vec, size = test_size_vec, 
-  stringsAsFactors = F)
-
-get_sv_matches <- function(SV_df){
-  out_list <- list()
-  tmp_SV <- SV_df
-  n_l <- nrow(SV_df)
-  while(n_l > 1){
-  same_chr <- which(tmp_SV$chr == tmp_SV$chr[1])
-  same_type <- which(tmp_SV$type == tmp_SV$type[1])
-  tmp_size <- tmp_SV$size[1]
-  sim_size <- which((tmp_SV$size > (0.9*tmp_size)) & 
-    (tmp_SV$size < (1.1*tmp_size)))
-  sim_pos <- which((tmp_SV$pos > (tmp_SV$pos[1] - tmp_size)) & 
-    (tmp_SV$pos < (tmp_SV$pos[1] + tmp_size)))
-  tmp_matches <- intersect(
-    intersect(same_chr, same_type), intersect(sim_size, sim_pos))
-  if(length(tmp_matches) > 1){
-    out_list[[tmp_SV$name[1]]] <- tmp_SV$name[tmp_matches] 
-    }
-  tmp_SV <- tmp_SV[-tmp_matches, ]
-  n_l <- nrow(tmp_SV)
-  print(n_l)
-  }
-  return(out_list)
-}
-
-indel_matches <- get_sv_matches(SV_df = test_SV_df)
-
-
-
-# A) Want to find SV's that are the same but with different names:
-  # 1) same chromosome
-  # 2) Similar size (within 10%)
-  # 3) Similar location (within SV size)
-# B) Tally up SVs in 4 replicates
-  # 1) Definitely keep 4's
-  # 2) Check a few 3's (DEL, INS, DUP) to figure out what's going on with those
-# C) Get names of SVs
-# D) Generate table of:
-  # 0) Name
-  # 1) Chromosome
-  # 2) Position
-  # 3) Size
-  # 4) Type
-
-
-
-
-
-
-
-meta_in <- '/home/t4c1/WORK/grabowsk/data/poplar_branches/meta/poplar_branch_meta_v4.0.txt'
-meta <- read.table(meta_in, stringsAsFactors = F, sep = '\t', header = T)
-
-test_genos <- all_indel_geno_list[[1]][indel_overlap, ]
-for(i in seq(ncol(test_genos))){
-  test_lib <- colnames(test_genos)[i]
-  meta_ind <- which(meta$lib_name == test_lib)
-  colnames(test_genos)[i] <- paste('b_',meta$branch_name[meta_ind], sep = '')
-}
-
-branch_num_ord <- c(13.5,13.3,13.2,13.1,14.5,14.4,14.3,14.2)
-branch_name_ord <- paste('b_', branch_num_ord, sep = '')
-
-test_genos_2 <- test_genos[, branch_name_ord]
-# nothing in tree 13...
-test_genos_2[, c(5:8,1:4)]
 
 
