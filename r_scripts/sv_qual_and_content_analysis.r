@@ -321,6 +321,14 @@ for(tc in unique(all_perc_genic_df$tot_class)){
   all_perc_genic_df$tot_class_2[tc_inds] <- new_text
 }
 
+#all_perc_df_txt_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+#  'poplar_SV_barplot_data_table.txt', sep = '/')
+#write.table(all_perc_genic_df, file = all_perc_df_txt_out, quote = F, 
+#  sep = '\t', row.names = F, col.names = T)
+#all_perc_df_rds_out <- paste('/home/f1p1/tmp/poplar_branches/pbsv_v2.2_runs',
+#  'poplar_SV_barplot_data_table.rds', sep = '/')
+#saveRDS(all_perc_genic_df, file = all_perc_df_rds_out)
+
 tot_class_levels <- unique(all_perc_genic_df$tot_class_2)[
   c(9,4,8,3,7,2,6,1,5)]
 
