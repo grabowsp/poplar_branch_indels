@@ -132,3 +132,52 @@ NR<=48 {next} \
 
 ### Tree 13 - NEED TO DO
 
+
+## Check SNPs with Jerry's PB version of mpileup
+### Make softlinks to bams
+```
+bash
+cd /home/grabowsky_scratch/poplar_branch_files/
+for i in *RG.bam;
+do ln -s /home/grabowsky_scratch/poplar_branch_files/$i /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/$i;
+done
+```
+### Link to reference
+```
+ln -s /home/f1p1/tmp/PBSV/Poplar14.5/REFERENCE/Populus_trichocarpa_var_14.5.mainGenome.fasta /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/Populus_trichocarpa_var_14.5.mainGenome.fasta
+```
+
+### Jerry's Test run
+#### Copy Sujan's VCF
+```
+cp /home/smamidi_scratch/Ptricocarpa_V14.5_somatic_mutations/SNP_treewise/vcfs_to_send/treewise_snp/tree13_step2.vcf.gz /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree13_step2.vcf.gz
+```
+### Run with old Tree14 SNPs as a test
+#### Copy Sujan's VCF
+```
+cp /home/smamidi_scratch/Ptricocarpa_V14.5_somatic_mutations/SNP_treewise/vcfs_to_send/treewise_snp/tree14_step2.vcf.gz /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2.vcf.gz
+```
+#### Make vcf.fofn
+* 'file of file names'
+  * file with the full path of the vcf used for this
+```
+echo \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2.vcf \
+> \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2_vcf.fofn
+```
+#### Make submit script
+```
+cp /home/t4c1/WORK/grabowsk/data/poplar_branches/check_snps_with_pb/pb_pileup_results/tree13_depth24_step3_mpileup.sh /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/PAXL_tree14_step2_jerryPB_look.sh
+```
+* adjust shell script to have commands that Jerry sent me
+* NOTE: NEED TO ADD PATH to .py FILES
+#### Submit job
+```
+cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps
+qsub PAXL_tree14_step2_jerryPB_look.sh
+```
+
+
+
+

@@ -137,5 +137,37 @@ length(t14_d42_s2_dist_100_inds)
 # which SNPs have "good" patterns in tree13
 # which SNPs have "bad" patterns in tree13
 
+###############
+# Scratch for trying to figure out penetrance...
+tmp_count_list <- strsplit(unlist(t14_d42_s2_c_0[1,]), split = ',')
+# make matrix
+matrix(as.numeric(unlist(tmp_count_list)), 
+  ncol = length(tmp_count_list[[1]]), byrow = T)
 
+
+# Idea for binomial test:
+
+n_snps <- 6000
+genome_size <- 300e6
+window_size <- 10000
+max_test_snp <- 50
+p_val_cut <- 1e-5
+snp_prob <- n_snps/genome_size
+
+
+snp_window_cut <- function(n_snps, genome_size, window_size, 
+  p_val_cut = 1e-5, max_test_snp = 50){
+  ######
+  snp_prob <- n_snps/genome_size
+  cumul_p_vec <- c()
+  for(i in c(1:max_test_snp)){
+    tmp_val <- sum(dbinom(i:window_size, size = window_size, prob = snp_prob))
+  cumul_p_vec <- c(cumul_p_vec, tmp_val)
+  }
+  cut_n <- min(which(cumul_p_vec < p_val_cut))
+  return(cut_n)
+}
+
+snp_window_cut(n_snps = 6000, genome_size = 300e6, window_size = 10e3)
+# 5
 
