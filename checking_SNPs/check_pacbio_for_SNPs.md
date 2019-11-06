@@ -177,7 +177,124 @@ cp /home/t4c1/WORK/grabowsk/data/poplar_branches/check_snps_with_pb/pb_pileup_re
 cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps
 qsub PAXL_tree14_step2_jerryPB_look.sh
 ```
+* waiting for this to finish running
+
+## Run on subsets of VCF
+### Overview
+* It's hard to run and process the full results, particularly for large sets \
+of SNPs
+* Should try breaking up the VCF into sub-files and running the mpileup \
+and/or Jerry's approach separately on each of the sub-files
+### Steps
+* Find out best way to divide VCF
+ * Will use VCF tools because retains Chromosome names in the process
+ * I tried plink and it's fast but it renames the chromosomes in the \
+vcf to numerical values rather than the original chromosome positions that \
+were used for mapping
+* Run mpileup and Jerry's approach on on sub-VCF from Sujan's old results
+* Figure out how to process the outputs
+### Divide VCF
+#### Plink (old)
+```
+cd /home/grabowsky_scratch/poplar_branch_files/sub_vcfs
+plink --vcf \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2.vcf \
+--keep-allele-order --make-bed --allow-extra-chr --out tree14_step2
+
+plink --bfile tree14_step2 --allow-extra-chr --chr Chr01 --recode vcf --out \
+tree14_step2_Chr01 
+
+```
+#### VCFtools (USE)
+```
+cd /home/grabowsky_scratch/poplar_branch_files/sub_vcfs
+
+vcftools --vcf \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2.vcf \
+--chr Chr01 --out tree14_step2_try2 --recode --recode-INFO-all
+
+vcftools --vcf \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2.vcf \
+--chr Chr01 --out tree14_step2_Chr01_tmp --kept-sites
+
+sed '1d' tree14_step2_Chr01_tmp.kept.sites > tree14_step2_Chr01.positions
+```
+
+### mpileup for Chr01 SNPs
+#### make submit script
+```
+cd /home/grabowsky_scratch/poplar_branch_files/sub_vcfs
+cp /home/t4c1/WORK/grabowsk/data/poplar_branches/check_snps_with_pb/pb_pileup_results/tree14_depth24_step3_mpileup.sh tree14_step2_Chr01_mpileup.sh
+```
+* adjust with vim
+#### submit
+```
+cd /home/grabowsky_scratch/poplar_branch_files/sub_vcfs
+qsub tree14_step2_Chr01_mpileup.sh
+```
+
+### Run Jerry's program
+#### Copy sub-VCF to directory with necessary files for testing
+```
+cp /home/grabowsky_scratch/poplar_branch_files/sub_vcfs/tree14_step2_Chr01.vcf \
+/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/
+```
+#### Make submission script for read-to-variant python command
+* I had problems running the two commands together, so I'll try running \
+them separately
+```
+cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/
+cp PAXL_tree14_step2_jerryPB_look.sh PAXL_t14_s2_Chr01_read_to_variant.sh
+```
+* adjust with vim
+
+#### make FOFN
+```
+echo /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2_Chr01.vcf > /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/tree14_step2_Chr01_vcf.fofn
+```
+#### Run read-to-variant
+```
+cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/
+qsub PAXL_t14_s2_Chr01_read_to_variant.sh
+```
+#### make submission script for call-ref-alt command
+```
+cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/
+cp PAXL_tree14_step2_jerryPB_look.sh PAXL_t14_s2_Chr01_callRefAlt.sh
+```
+* adjust with vim
+#### Run call-ref-alt (NEED TO DO)
+```
+cd /home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/
+qsub PAXL_t14_s2_Chr01_callRefAlt.sh
+```
 
 
+## Try to parse Jerry's output in R
+```
+test_file <- '/home/grabowsky_scratch/poplar_branch_files/pb_jerry_snps/PAXL.14.5v1.0Ref.ngmlr.sorted.withRG.phase_info.dat'
 
+test <- scan(test_file, what = 'character', sep = '$')
 
+dash_inds <- grep('---------', test)
+read_name_inds <- dash_inds + 1
+read_start_inds <- read_name_inds + 1
+read_end_inds <- c(dash_inds[c(2:length(dash_inds))]-1, length(test))
+
+info_list <- list()
+#for(i in seq(length(read_name_inds))){
+for(i in seq(100)){
+  info_list[[i]] <- list()
+  info_list[[i]][[1]] <-test[read_name_inds[i]] 
+  info_list[[i]][[2]]<- test[read_start_inds[i]:read_end_inds[i]]
+}
+
+# need to adjust the indexing below...
+
+read_sum_list <- lapply(info_list, function(x) data.frame(matrix(unlist(
+  strsplit(info_list[[1]], split = '\t|;')), byrow = T, ncol = 5), 
+  stringsAsFactors = F))
+
+read_sum_list <- lapply(read_sum_list, function(x) x)
+
+```
